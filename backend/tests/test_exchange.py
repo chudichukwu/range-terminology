@@ -111,6 +111,7 @@ def build_fake_ccxt():
                 "createStopOrder": False,
                 "short": False,
             }
+            self.timeframes = {"1m": "1m", "1h": "1h", "1d": "1d"}
             self.markets = {"BTC/USDT": {"symbol": "BTC/USDT", "active": True}}
             self.sandbox_calls: list[bool] = []
             self.scripts: dict[str, object] = {}
@@ -136,8 +137,8 @@ def build_fake_ccxt():
             assert isinstance(result, dict)
             return result
 
-        def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list:
-            result = self._scripted("fetch_ohlcv", symbol, timeframe, limit)
+        def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int, since_ms=None):  # type: ignore[no-untyped-def]
+            result = self._scripted("fetch_ohlcv", symbol, timeframe, limit, since_ms)
             assert isinstance(result, list)
             return result
 
@@ -740,6 +741,21 @@ class TestCcxtAdapterPublicData:
         fake.scripts["fetch_ohlcv"] = OHLCV_ROWS
         candles = adapter.get_ohlcv("BTC/USDT", "1h", limit=2)
         assert candles[1].open == 100.5
+
+    def test_ohlcv_since_passthrough(self) -> None:
+        adapter, fake = make_adapter()
+        fake.scripts["fetch_ohlcv"] = OHLCV_ROWS
+        adapter.get_ohlcv("BTC/USDT", "1h", limit=2, since_ms=1_700_000_000_000)
+        assert ("fetch_ohlcv", ("BTC/USDT", "1h", 2, 1_700_000_000_000)) in fake.calls
+
+    def test_supported_timeframes_from_venue(self) -> None:
+        adapter, _fake = make_adapter()
+        assert adapter.supported_timeframes == ("1d", "1h", "1m")
+
+    def test_supported_timeframes_empty_when_unadvertised(self) -> None:
+        adapter, fake = make_adapter()
+        fake.timeframes = None
+        assert adapter.supported_timeframes == ()
 
     def test_order_book_flow(self) -> None:
         adapter, fake = make_adapter()

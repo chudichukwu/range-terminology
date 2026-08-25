@@ -47,8 +47,20 @@ class ExchangePort(ABC):
         """Order book snapshot with up to ``depth`` levels per side."""
 
     @abstractmethod
-    def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> tuple[Candle, ...]:
-        """Recent candles for ``symbol`` at ``timeframe`` (e.g. ``"1h"``)."""
+    def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 200,
+        since_ms: int | None = None,
+    ) -> tuple[Candle, ...]:
+        """Recent candles for ``symbol`` at ``timeframe`` (e.g. ``"1h"``).
+
+        ``since_ms``, when provided, asks the venue for candles opening at or
+        after that UTC millisecond timestamp; the venue may still return fewer
+        rows than ``limit``. Adapters that cannot honor ``since_ms`` must
+        reject the request rather than silently return newer data.
+        """
 
     @abstractmethod
     def get_markets(self) -> tuple[str, ...]:

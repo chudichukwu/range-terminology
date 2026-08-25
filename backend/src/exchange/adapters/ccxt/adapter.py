@@ -355,7 +355,9 @@ class CcxtExchangeLike(Protocol):
     def set_sandbox_mode(self, enabled: bool) -> None: ...
     def fetch_ticker(self, symbol: str) -> dict[str, object]: ...
     def fetch_order_book(self, symbol: str, limit: int) -> dict[str, object]: ...
-    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list[object]: ...
+    def fetch_ohlcv(
+        self, symbol: str, timeframe: str, limit: int, since_ms: int | None = None
+    ) -> list[object]: ...
     def load_markets(self) -> object: ...
     def fetch_balance(self) -> dict[str, object]: ...
     def fetch_positions(self) -> list[object]: ...
@@ -513,8 +515,26 @@ class CcxtAdapter(ExchangePort):
     def get_order_book(self, symbol: str, depth: int = 50) -> OrderBook:
         return normalize_order_book(symbol, self._call_mapping("fetch_order_book", symbol, depth))
 
-    def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> tuple[Candle, ...]:
-        return normalize_candles(self._call("fetch_ohlcv", symbol, timeframe, limit))
+    def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 200,
+        since_ms: int | None = None,
+    ) -> tuple[Candle, ...]:
+        return normalize_candles(self._call("fetch_ohlcv", symbol, timeframe, limit, since_ms))
+
+    @property
+    def supported_timeframes(self) -> tuple[str, ...]:
+        """Timeframes the venue advertises for OHLCV; empty when unadvertised."""
+        raw = getattr(self._exchange, "timeframes", None)
+        if isinstance(raw, Mapping):
+            keys: list[str] = [str(key) for key in raw]
+        elif isinstance(raw, (list, tuple)):
+            keys = [str(item) for item in raw]
+        else:
+            return ()
+        return tuple(sorted({key for key in keys if key}))
 
     def get_markets(self) -> tuple[str, ...]:
         self._call("load_markets")
