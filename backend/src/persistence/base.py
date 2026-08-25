@@ -4,11 +4,11 @@ Domain engines never import anything from this package; the application layer
 depends on these ABCs, keeping SQLite (or any future store) an implementation
 detail behind :mod:`persistence.adapters`.
 """
-
 from abc import ABC, abstractmethod
 
 from market_data.models import CandleDataset, Timeframe
 from persistence.models import (
+    BacktestRunRecord,
     DatasetSummary,
     IngestionResult,
     StoredTrade,
@@ -93,3 +93,24 @@ class TradeRepository(ABC):
         closed_to_ms: int | None = None,
     ) -> tuple[StoredTrade, ...]:
         """Filtered trades ordered by close time then id."""
+
+
+class BacktestRunRepository(ABC):
+    """Persistence for completed backtest runs (identity + headline facts)."""
+
+    @abstractmethod
+    def save_run(self, record: BacktestRunRecord) -> None:
+        """Store one run; the same ``run_id`` is rejected loudly."""
+
+    @abstractmethod
+    def get_run(self, run_id: str) -> BacktestRunRecord | None:
+        """Fetch one run by id."""
+
+    @abstractmethod
+    def list_runs(
+        self,
+        *,
+        symbol: str | None = None,
+        config_hash: str | None = None,
+    ) -> tuple[BacktestRunRecord, ...]:
+        """Runs newest-first, optionally filtered."""

@@ -8,7 +8,7 @@ are impossible. No external migration framework — deliberate and small.
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _V1_STATEMENTS: tuple[str, ...] = (
     """
@@ -80,6 +80,30 @@ _V1_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades (strategy_id)",
 )
 
+_V2_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS backtest_runs (
+        run_id          TEXT PRIMARY KEY,
+        config_hash     TEXT NOT NULL,
+        symbol          TEXT NOT NULL,
+        timeframe       TEXT NOT NULL,
+        period_start_ms INTEGER NOT NULL,
+        period_end_ms   INTEGER NOT NULL,
+        initial_capital REAL NOT NULL,
+        final_equity    REAL NOT NULL,
+        peak_equity     REAL NOT NULL,
+        max_drawdown    REAL NOT NULL,
+        total_trades    INTEGER NOT NULL,
+        stats_json      TEXT NOT NULL,
+        config_json     TEXT NOT NULL,
+        engine_version  TEXT NOT NULL,
+        created_at_ms   INTEGER NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_backtest_runs_symbol ON backtest_runs (symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_backtest_runs_config ON backtest_runs (config_hash)",
+)
+
 
 @dataclass(frozen=True)
 class Migration:
@@ -93,6 +117,7 @@ class Migration:
 #: Ordered migration history; index i upgrades schema to ``version = i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=1, name="initial_schema", statements=_V1_STATEMENTS),
+    Migration(version=2, name="backtest_runs", statements=_V2_STATEMENTS),
 )
 
 assert MIGRATIONS[-1].version == SCHEMA_VERSION, "migration history must end at SCHEMA_VERSION"

@@ -334,3 +334,39 @@ class TradeUpdate:
             raise ValueError("TradeUpdate.exit_price must be finite and positive")
         if self.closed_at_ms <= 0:
             raise ValueError("TradeUpdate.closed_at_ms must be a positive ms timestamp")
+
+
+@dataclass(frozen=True)
+class BacktestRunRecord:
+    """Persisted identity + headline facts of one backtest run.
+
+    Stores the FULL configuration JSON and engine version so any run is
+    reproducible; statistics are stored as a derived snapshot (clearly not
+    authoritative — trades remain the source of truth).
+    """
+
+    run_id: str
+    config_hash: str
+    symbol: str
+    timeframe: str
+    period_start_ms: int
+    period_end_ms: int
+    initial_capital: float
+    final_equity: float
+    peak_equity: float
+    max_drawdown: float
+    total_trades: int
+    stats_json: str
+    config_json: str
+    engine_version: str
+    created_at_ms: int
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("BacktestRunRecord.run_id must be non-empty")
+        if not self.config_hash:
+            raise ValueError("BacktestRunRecord.config_hash must be non-empty")
+        if not self.symbol:
+            raise ValueError("BacktestRunRecord.symbol must be non-empty")
+        if self.initial_capital <= 0.0:
+            raise ValueError("BacktestRunRecord.initial_capital must be positive")

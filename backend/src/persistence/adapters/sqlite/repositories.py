@@ -23,9 +23,10 @@ from market_data.models import (
     Timeframe,
 )
 from persistence.adapters.sqlite.database import SqliteDatabase, utc_clock_ms
-from persistence.base import CandleRepository, TradeRepository
+from persistence.base import BacktestRunRepository, CandleRepository, TradeRepository
 from persistence.errors import PersistenceError, PersistenceErrorCode
 from persistence.models import (
+    BacktestRunRecord,
     DatasetSummary,
     IngestionResult,
     QualityStatus,
@@ -76,7 +77,7 @@ def _report_from_json(raw: str) -> DataQualityReport:
     return DataQualityReport(issues=issues)
 
 
-class SqlitePersistence(CandleRepository, TradeRepository):
+class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository):
     """SQLite store implementing both repository ports over one connection."""
 
     def __init__(
@@ -594,3 +595,92 @@ class SqlitePersistence(CandleRepository, TradeRepository):
             updated_at_ms=int(row["updated_at_ms"]),
         )
 
+
+    # ==================================================================
+    # BacktestRunRepository
+    # ==================================================================
+
+    def save_run(self, record: BacktestRunRecord) -> None:
+        try:
+            with self._db.transaction() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO backtest_runs (
+                        run_id, config_hash, symbol, timeframe,
+                        period_start_ms, period_end_ms, initial_capital,
+                        final_equity, peak_equity, max_drawdown, total_trades,
+                        stats_json, config_json, engine_version, created_at_ms
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record.run_id,
+                        record.config_hash,
+                        record.symbol,
+                        record.timeframe,
+                        record.period_start_ms,
+                        record.period_end_ms,
+                        record.initial_capital,
+                        record.final_equity,
+                        record.peak_equity,
+                        record.max_drawdown,
+                        record.total_trades,
+                        record.stats_json,
+                        record.config_json,
+                        record.engine_version,
+                        record.created_at_ms,
+                    ),
+                )
+        except PersistenceError as exc:
+            if exc.code is PersistenceErrorCode.INTEGRITY_ERROR:
+                raise PersistenceError(
+                    PersistenceErrorCode.INTEGRITY_ERROR,
+                    f"backtest run {record.run_id!r} already exists",
+                    metadata={"run_id": record.run_id},
+                ) from exc
+            raise
+
+    def get_run(self, run_id: str) -> BacktestRunRecord | None:
+        with self._db.transaction() as conn:
+            row = conn.execute(
+                "SELECT * FROM backtest_runs WHERE run_id=?", (run_id,)
+            ).fetchone()
+        return self._run_from_row(row) if row is not None else None
+
+    def list_runs(
+        self,
+        *,
+        symbol: str | None = None,
+        config_hash: str | None = None,
+    ) -> tuple[BacktestRunRecord, ...]:
+        sql = "SELECT * FROM backtest_runs WHERE 1=1"
+        params: list[object] = []
+        if symbol is not None:
+            sql += " AND symbol=?"
+            params.append(symbol)
+        if config_hash is not None:
+            sql += " AND config_hash=?"
+            params.append(config_hash)
+        sql += " ORDER BY created_at_ms DESC, run_id ASC"
+        with self._db.transaction() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return tuple(self._run_from_row(row) for row in rows)
+
+    @staticmethod
+    def _run_from_row(row: sqlite3.Row) -> BacktestRunRecord:
+        return BacktestRunRecord(
+            run_id=str(row["run_id"]),
+            config_hash=str(row["config_hash"]),
+            symbol=str(row["symbol"]),
+            timeframe=str(row["timeframe"]),
+            period_start_ms=int(row["period_start_ms"]),
+            period_end_ms=int(row["period_end_ms"]),
+            initial_capital=float(row["initial_capital"]),
+            final_equity=float(row["final_equity"]),
+            peak_equity=float(row["peak_equity"]),
+            max_drawdown=float(row["max_drawdown"]),
+            total_trades=int(row["total_trades"]),
+            stats_json=str(row["stats_json"]),
+            config_json=str(row["config_json"]),
+            engine_version=str(row["engine_version"]),
+            created_at_ms=int(row["created_at_ms"]),
+        )

@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/range_engine", "src/signal_engine", "src/risk_engine", "src/exchange", "src/execution_engine", "src/market_data", "src/persistence"]
+packages = ["src/range_engine", "src/signal_engine", "src/risk_engine", "src/exchange", "src/execution_engine", "src/market_data", "src/persistence", "src/backtesting"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -44,5 +44,5 @@ select = ["E", "F", "W", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-packages = ["range_engine", "signal_engine", "risk_engine", "exchange", "execution_engine", "market_data", "persistence"]
+packages = ["range_engine", "signal_engine", "risk_engine", "exchange", "execution_engine", "market_data", "persistence", "backtesting"]
 strict = true

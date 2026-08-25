@@ -11,12 +11,13 @@ engines never import anything from this package.
 
 from persistence.adapters.sqlite.database import SqliteDatabase, utc_clock_ms
 from persistence.adapters.sqlite.repositories import SqlitePersistence
-from persistence.base import CandleRepository, TradeRepository
+from persistence.base import BacktestRunRepository, CandleRepository, TradeRepository
 from persistence.errors import PersistenceError, PersistenceErrorCode
 from persistence.execution_link import trade_from_execution
 from persistence.migrations import MIGRATIONS, SCHEMA_VERSION, Migration
 from persistence.models import (
     DEFAULT_BREAKEVEN_EPSILON,
+    BacktestRunRecord,
     DatasetSummary,
     IngestionResult,
     QualityStatus,
@@ -34,6 +35,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     "DEFAULT_BREAKEVEN_EPSILON",
+    "BacktestRunRecord",
+    "BacktestRunRepository",
     "CandleRepository",
     "DatasetSummary",
     "IngestionResult",
@@ -52,7 +55,6 @@ __all__ = [
     "TradeStatistics",
     "TradeStatus",
     "TradeUpdate",
-    "TradeStatistics",
     "__version__",
     "classify_result",
     "compute_trade_statistics",

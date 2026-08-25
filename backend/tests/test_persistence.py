@@ -150,7 +150,8 @@ def make_execution_result(**overrides: object) -> ExecutionResult:
 class TestDatabaseLifecycle:
     def test_fresh_database_initializes_to_current_version(self, tmp_path: Path) -> None:
         store, _clock = make_store(tmp_path)
-        assert store.schema_version == SCHEMA_VERSION == 1
+        assert store.schema_version == SCHEMA_VERSION
+        assert store.schema_version >= 2
         store.close()
 
     def test_ensure_schema_is_idempotent(self, tmp_path: Path) -> None:
