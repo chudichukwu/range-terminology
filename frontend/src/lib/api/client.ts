@@ -140,4 +140,9 @@ export const api = {
     return apiFetch<import("./types").TradeStatistics>(`/trades/statistics${qs}`, { signal });
   },
   listTimeframes: (signal?: AbortSignal) => apiFetch<{ timeframes: string[] }>("/markets/timeframes", { signal }),
+  listExchangeConnections: (signal?: AbortSignal) => apiFetch<import("./types").ExchangeConnection[]>("/exchanges/connections", { signal }),
+  createExchangeConnection: (body: { venue_id: string; display_name: string; api_key: string; secret: string; password?: string; sandbox?: boolean }) =>
+    apiFetch<import("./types").ExchangeConnection>("/exchanges/connections", { method: "POST", body }),
+  deleteExchangeConnection: (id: string) => apiFetch<void>(`/exchanges/connections/${id}`, { method: "DELETE" }),
+  getSystemHealth: (signal?: AbortSignal) => apiFetch<import("./types").SystemHealth>("/admin/system-health", { signal }),
 };
