@@ -113,5 +113,11 @@ export const api = {
     apiFetch<import("./types").WatchlistItem>(`/watchlists/${watchlistId}/items`, { method: "POST", body }),
   removeWatchlistItem: (watchlistId: string, itemId: string) => apiFetch<void>(`/watchlists/${watchlistId}/items/${itemId}`, { method: "DELETE" }),
   listStrategies: (signal?: AbortSignal) => apiFetch<import("./types").Strategy[]>("/strategies", { signal }),
+  getStrategy: (id: string, signal?: AbortSignal) => apiFetch<import("./types").Strategy>(`/strategies/${id}`, { signal }),
+  createStrategy: (body: { name: string; payload: { range_config: Record<string, unknown>; signal_config: Record<string, unknown>; risk_config: Record<string, unknown> }; active?: boolean }) =>
+    apiFetch<import("./types").Strategy>("/strategies", { method: "POST", body }),
+  updateStrategy: (id: string, body: { name?: string; payload?: { range_config: Record<string, unknown>; signal_config: Record<string, unknown>; risk_config: Record<string, unknown> }; active?: boolean }) =>
+    apiFetch<import("./types").Strategy>(`/strategies/${id}`, { method: "PATCH", body }),
+  deleteStrategy: (id: string) => apiFetch<void>(`/strategies/${id}`, { method: "DELETE" }),
   listTimeframes: (signal?: AbortSignal) => apiFetch<{ timeframes: string[] }>("/markets/timeframes", { signal }),
 };
