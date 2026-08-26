@@ -609,8 +609,9 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
                         run_id, config_hash, symbol, timeframe,
                         period_start_ms, period_end_ms, initial_capital,
                         final_equity, peak_equity, max_drawdown, total_trades,
-                        stats_json, config_json, engine_version, created_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        stats_json, config_json, engine_version, created_at_ms,
+                        owner_user_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record.run_id,
@@ -628,6 +629,7 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
                         record.config_json,
                         record.engine_version,
                         record.created_at_ms,
+                        record.owner_user_id,
                     ),
                 )
         except PersistenceError as exc:
@@ -651,9 +653,13 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
         *,
         symbol: str | None = None,
         config_hash: str | None = None,
+        owner_user_id: str | None = None,
     ) -> tuple[BacktestRunRecord, ...]:
         sql = "SELECT * FROM backtest_runs WHERE 1=1"
         params: list[object] = []
+        if owner_user_id is not None:
+            sql += " AND owner_user_id=?"
+            params.append(owner_user_id)
         if symbol is not None:
             sql += " AND symbol=?"
             params.append(symbol)
@@ -683,4 +689,5 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
             config_json=str(row["config_json"]),
             engine_version=str(row["engine_version"]),
             created_at_ms=int(row["created_at_ms"]),
+            owner_user_id=row["owner_user_id"],
         )

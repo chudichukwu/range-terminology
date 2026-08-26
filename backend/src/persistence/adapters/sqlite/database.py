@@ -37,6 +37,10 @@ class SqliteDatabase:
         self._conn = sqlite3.connect(
             str(self._path),
             isolation_level="DEFERRED",
+            # The application container owns exactly one connection shared
+            # across request-handler threads (FastAPI threadpool); access is
+            # serialized per request and guarded by explicit transactions.
+            check_same_thread=False,
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")

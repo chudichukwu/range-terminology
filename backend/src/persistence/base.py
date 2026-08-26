@@ -112,5 +112,6 @@ class BacktestRunRepository(ABC):
         *,
         symbol: str | None = None,
         config_hash: str | None = None,
+        owner_user_id: str | None = None,
     ) -> tuple[BacktestRunRecord, ...]:
         """Runs newest-first, optionally filtered."""

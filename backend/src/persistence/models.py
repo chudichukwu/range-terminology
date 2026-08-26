@@ -360,6 +360,7 @@ class BacktestRunRecord:
     config_json: str
     engine_version: str
     created_at_ms: int
+    owner_user_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id:

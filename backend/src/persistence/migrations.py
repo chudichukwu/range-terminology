@@ -8,7 +8,7 @@ are impossible. No external migration framework — deliberate and small.
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _V1_STATEMENTS: tuple[str, ...] = (
     """
@@ -104,6 +104,103 @@ _V2_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_backtest_runs_config ON backtest_runs (config_hash)",
 )
 
+_V3_STATEMENTS: tuple[str, ...] = (
+    # Phase 8 compatibility: runs gain an optional owner for user isolation.
+    "ALTER TABLE backtest_runs ADD COLUMN owner_user_id TEXT",
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id              TEXT PRIMARY KEY,
+        email           TEXT NOT NULL UNIQUE,
+        password_hash   TEXT NOT NULL,
+        role            TEXT NOT NULL CHECK (role IN ('user', 'owner')),
+        active          INTEGER NOT NULL CHECK (active IN (0, 1)),
+        created_at_ms   INTEGER NOT NULL,
+        updated_at_ms   INTEGER NOT NULL,
+        last_login_at_ms INTEGER
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_digest TEXT NOT NULL UNIQUE,
+        created_at_ms INTEGER NOT NULL,
+        expires_at_ms INTEGER NOT NULL,
+        revoked_at_ms INTEGER
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS watchlists (
+        id            TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        UNIQUE (owner_user_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_watchlists_owner ON watchlists (owner_user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS watchlist_items (
+        id            TEXT PRIMARY KEY,
+        watchlist_id  TEXT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+        symbol        TEXT NOT NULL,
+        venue_id      TEXT NOT NULL,
+        enabled       INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        notes         TEXT NOT NULL DEFAULT '',
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        created_at_ms INTEGER NOT NULL
+    )
+    """,
+    (
+        "CREATE INDEX IF NOT EXISTS idx_watchlist_items_list "
+        "ON watchlist_items (watchlist_id, sort_order)"
+    ),
+    """
+    CREATE TABLE IF NOT EXISTS strategy_configs (
+        id            TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        payload_json  TEXT NOT NULL,
+        schema_version TEXT NOT NULL,
+        active        INTEGER NOT NULL CHECK (active IN (0, 1)),
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        UNIQUE (owner_user_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_strategies_owner ON strategy_configs (owner_user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS exchange_connections (
+        id             TEXT PRIMARY KEY,
+        owner_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        venue_id       TEXT NOT NULL,
+        display_name   TEXT NOT NULL,
+        status         TEXT NOT NULL,
+        credential_ref TEXT NOT NULL,
+        sandbox        INTEGER NOT NULL CHECK (sandbox IN (0, 1)),
+        created_at_ms  INTEGER NOT NULL,
+        updated_at_ms  INTEGER NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_connections_owner ON exchange_connections (owner_user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id            TEXT PRIMARY KEY,
+        actor_user_id TEXT,
+        action        TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id   TEXT,
+        timestamp_ms  INTEGER NOT NULL,
+        outcome       TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log (timestamp_ms)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log (actor_user_id)",
+)
+
 
 @dataclass(frozen=True)
 class Migration:
@@ -118,6 +215,7 @@ class Migration:
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=1, name="initial_schema", statements=_V1_STATEMENTS),
     Migration(version=2, name="backtest_runs", statements=_V2_STATEMENTS),
+    Migration(version=3, name="application_layer", statements=_V3_STATEMENTS),
 )
 
 assert MIGRATIONS[-1].version == SCHEMA_VERSION, "migration history must end at SCHEMA_VERSION"

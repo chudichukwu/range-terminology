@@ -828,27 +828,30 @@ class TestRunPersistence:
             store.save_run(record)
         store.close()
 
-    def test_v1_database_migrates_to_v2_preserving_data(self, tmp_path: Path) -> None:
-        """An existing Phase 7 database upgrades safely to the new schema."""
-
+    def test_v2_database_migrates_to_v3_preserving_data(self, tmp_path: Path) -> None:
+        """An existing Phase 8 database upgrades safely to the new schema."""
         db_path = tmp_path / "legacy.db"
         legacy = SqlitePersistence(db_path, clock_ms=lambda: 7)
         legacy.ingest_dataset(sawtooth_dataset(cycles=2), source="binance")
-        assert legacy.schema_version == 2  # fresh store already at head
+        assert legacy.schema_version == 3  # fresh store already at head
         legacy.close()
 
-        # Simulate a genuine v1 database: apply only migration 1.
+        # Simulate a genuine pre-Phase-9 database: drop app tables, rewind version.
         import sqlite3
 
         conn = sqlite3.connect(str(db_path))
-        conn.execute("DELETE FROM backtest_runs")
-        conn.execute("DROP TABLE backtest_runs")
-        conn.execute("DELETE FROM schema_migrations WHERE version=2")
+        for table in (
+            "audit_log", "exchange_connections", "strategy_configs",
+            "watchlist_items", "watchlists", "sessions", "users",
+        ):
+            conn.execute(f"DROP TABLE IF EXISTS {table}")
+        conn.execute("ALTER TABLE backtest_runs DROP COLUMN owner_user_id")
+        conn.execute("DELETE FROM schema_migrations WHERE version=3")
         conn.commit()
         conn.close()
 
         reopened = SqlitePersistence(db_path, clock_ms=lambda: 8)
-        assert reopened.schema_version == SCHEMA_VERSION_2
+        assert reopened.schema_version == SCHEMA_VERSION_3
         candles = reopened.query_candles("BTC/USDT", Timeframe.H1, source="binance")
         assert len(candles.candles) == 48
         record = run_record_from(
@@ -860,4 +863,4 @@ class TestRunPersistence:
         reopened.close()
 
 
-SCHEMA_VERSION_2 = 2
+SCHEMA_VERSION_3 = 3
