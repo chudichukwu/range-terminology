@@ -119,5 +119,9 @@ export const api = {
   updateStrategy: (id: string, body: { name?: string; payload?: { range_config: Record<string, unknown>; signal_config: Record<string, unknown>; risk_config: Record<string, unknown> }; active?: boolean }) =>
     apiFetch<import("./types").Strategy>(`/strategies/${id}`, { method: "PATCH", body }),
   deleteStrategy: (id: string) => apiFetch<void>(`/strategies/${id}`, { method: "DELETE" }),
+  listBacktests: (signal?: AbortSignal) => apiFetch<import("./types").BacktestRunSummary[]>("/backtests", { signal }),
+  getBacktest: (runId: string, signal?: AbortSignal) => apiFetch<import("./types").BacktestDetail>(`/backtests/${runId}`, { signal }),
+  runBacktest: (body: { strategy_id: string; start_ms: number; end_ms: number; initial_capital: number; fee_rate?: number; slippage_rate?: number }) =>
+    apiFetch<import("./types").BacktestDetail>("/backtests", { method: "POST", body }),
   listTimeframes: (signal?: AbortSignal) => apiFetch<{ timeframes: string[] }>("/markets/timeframes", { signal }),
 };

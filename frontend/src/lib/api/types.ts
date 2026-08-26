@@ -90,7 +90,7 @@ export type StoredTrade = {
   config_hash: string | null;
 };
 
-// — Backtests —
+// — Backtests — backend-provided (no frontend recomputation)
 export type BacktestRunSummary = {
   run_id: string;
   config_hash: string;
@@ -105,6 +105,44 @@ export type BacktestRunSummary = {
   total_trades: number;
   owner_user_id: string | null;
   created_at_ms: number;
+};
+export type BacktestStatistics = {
+  total_trades: number;
+  completed_trades: number;
+  wins: number;
+  losses: number;
+  breakevens: number;
+  win_rate: number | null;
+  average_r: number | null;
+  profit_factor: number | null;
+  expectancy: number | null;
+  total_realized_pnl: number;
+  max_drawdown: number | null;
+};
+export type BacktestTrade = {
+  trade_id: string;
+  symbol: string;
+  direction: string;
+  quantity: number;
+  entry_price: number;
+  exit_price: number | null;
+  realized_pnl: number | null;
+  fees: number | null;
+  slippage: number | null;
+  realized_r: number | null;
+  result: string | null;
+  opened_at_ms: number;
+  closed_at_ms: number | null;
+};
+export type EquityPoint = { timestamp_ms: number; equity: number; peak_equity: number; drawdown: number };
+export type BacktestDetail = BacktestRunSummary & {
+  statistics: BacktestStatistics;
+  trades: BacktestTrade[];
+  regime_counts: Record<string, number>;
+  zone_counts: Record<string, number>;
+  equity_curve: EquityPoint[];
+  config: Record<string, unknown>;
+  engine_version: string;
 };
 
 // — Exchange connections —

@@ -1,5 +1,7 @@
 """Backtest endpoints: strategy + window -> deterministic persisted run."""
 
+import json
+
 from fastapi import APIRouter
 
 from api.dependencies import ContainerDep, CurrentUser
@@ -78,6 +80,17 @@ def run_backtest(
         }
         for trade in result.trades
     ]
+    body["equity_curve"] = [
+        {
+            "timestamp_ms": pt.timestamp_ms,
+            "equity": pt.equity,
+            "peak_equity": pt.peak_equity,
+            "drawdown": pt.drawdown,
+        }
+        for pt in result.equity_curve
+    ]
+    body["config"] = json.loads(record.config_json)
+    body["engine_version"] = record.engine_version
     return body
 
 
@@ -90,4 +103,58 @@ def list_backtests(container: ContainerDep, user: CurrentUser) -> list[dict[str,
 def get_backtest(
     run_id: str, container: ContainerDep, user: CurrentUser
 ) -> dict[str, object]:
-    return _summary(container.backtests.get_run(user, run_id))
+    record = container.backtests.get_run(user, run_id)
+    body = _summary(record)
+    # Enrich with persisted derived data for research workspace
+    try:
+        body["statistics"] = json.loads(record.stats_json)
+    except Exception:
+        body["statistics"] = {}
+    try:
+        body["config"] = json.loads(record.config_json)
+    except Exception:
+        body["config"] = {}
+    body["engine_version"] = record.engine_version
+    body["config_hash"] = record.config_hash
+    # Trades for this run — filter by config_hash (run identity)
+    all_trades = container.store.list_trades()
+    run_trades = [t for t in all_trades if t.config_hash == record.config_hash]
+    # Ensure chronological by closed time
+    run_trades.sort(key=lambda t: (t.closed_at_ms or t.opened_at_ms, t.trade_id))
+    body["trades"] = [
+        {
+            "trade_id": trade.trade_id,
+            "symbol": trade.symbol,
+            "direction": trade.direction.value,
+            "quantity": trade.quantity,
+            "entry_price": trade.entry_price,
+            "exit_price": trade.exit_price,
+            "realized_pnl": trade.realized_pnl,
+            "fees": trade.fees,
+            "slippage": trade.slippage,
+            "realized_r": trade.realized_r,
+            "result": trade.result.value if trade.result else None,
+            "opened_at_ms": trade.opened_at_ms,
+            "closed_at_ms": trade.closed_at_ms,
+        }
+        for trade in run_trades
+    ]
+    # Reconstruct equity curve from trades (authoritative P&L sequence)
+    equity = record.initial_capital
+    peak = equity
+    curve: list[dict[str, object]] = []
+    for trade in run_trades:
+        if trade.realized_pnl is not None:
+            equity += float(trade.realized_pnl)
+            peak = max(peak, equity)
+            drawdown = peak - equity
+            ts = trade.closed_at_ms or trade.opened_at_ms
+            curve.append(
+                {"timestamp_ms": ts, "equity": equity, "peak_equity": peak, "drawdown": drawdown}
+            )
+    body["equity_curve"] = curve
+    # Regime/zone counts not persisted pre-Phase14; return empty.
+    # Frontend shows "—" / unavailable for historical runs.
+    body["regime_counts"] = {}
+    body["zone_counts"] = {}
+    return body
