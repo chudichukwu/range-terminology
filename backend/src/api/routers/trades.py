@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query
 from api.dependencies import ContainerDep, CurrentUser
 from app_layer.errors import NotFoundError
 from persistence.models import TradeResult
+from persistence.statistics import compute_trade_statistics
 
 router = APIRouter(prefix="/trades", tags=["trades"])
 
@@ -55,6 +56,67 @@ def _visible_strategy_ids(container, user) -> set[str] | None:  # type: ignore[n
     if user.role.value == "owner":
         return None
     return {strategy.name for strategy in container.strategies.list(user)}
+
+
+@router.get("/statistics")
+def trade_statistics(
+    container: ContainerDep,
+    user: CurrentUser,
+    symbol: str | None = Query(default=None),
+    strategy_id: str | None = Query(default=None),
+) -> dict[str, object]:
+    """Backend-computed performance facts for the visible trade history."""
+    trades = container.store.list_trades(symbol=symbol)
+    visible_ids = _visible_strategy_ids(container, user)
+    if visible_ids is not None:
+        trades = tuple(t for t in trades if t.strategy_id in visible_ids)
+    if strategy_id:
+        trades = tuple(t for t in trades if t.strategy_id == strategy_id)
+    stats = compute_trade_statistics(trades)
+    # Equity curve: chronological cumulative P&L (trade-close granularity)
+    closed = sorted(
+        [
+            t
+            for t in trades
+            if t.status.value == "closed"
+            and t.closed_at_ms is not None
+            and t.realized_pnl is not None
+        ],
+        key=lambda t: (t.closed_at_ms or 0, t.trade_id),
+    )
+    equity = 0.0
+    peak = 0.0
+    points: list[dict[str, object]] = []
+    for t in closed:
+        pnl = float(t.realized_pnl or 0.0)
+        equity += pnl
+        peak = max(peak, equity)
+        drawdown = peak - equity
+        points.append(
+            {
+                "timestamp_ms": t.closed_at_ms,
+                "equity": round(equity, 6),
+                "peak_equity": round(peak, 6),
+                "drawdown": round(drawdown, 6),
+            }
+        )
+    return {
+        "total_trades": stats.total_trades,
+        "open_trades": stats.open_trades,
+        "completed_trades": stats.completed_trades,
+        "wins": stats.wins,
+        "losses": stats.losses,
+        "breakevens": stats.breakevens,
+        "win_rate": stats.win_rate,
+        "average_win": stats.average_win,
+        "average_loss": stats.average_loss,
+        "average_r": stats.average_r,
+        "total_realized_pnl": stats.total_realized_pnl,
+        "expectancy": stats.expectancy,
+        "profit_factor": stats.profit_factor,
+        "max_drawdown": stats.max_drawdown,
+        "equity_curve": points,
+    }
 
 
 @router.get("")

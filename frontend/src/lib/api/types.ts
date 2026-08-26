@@ -66,7 +66,7 @@ export type CandleDataset = {
   candles: MarketCandle[];
 };
 
-// — Trades / Persistence —
+// — Trades / Persistence — backend-provided StoredTrade facts
 export type TradeStatus = "open" | "closed";
 export type TradeResult = "win" | "loss" | "breakeven";
 export type StoredTrade = {
@@ -88,6 +88,33 @@ export type StoredTrade = {
   result: TradeResult | null;
   strategy_id: string | null;
   config_hash: string | null;
+  context?: {
+    range_mode?: string | null;
+    range_high?: number | null;
+    range_low?: number | null;
+    signal_direction?: string | null;
+    signal_reason?: string | null;
+    regime?: string | null;
+    zone?: string | null;
+    simulated?: boolean;
+  } | null;
+};
+export type TradeStatistics = {
+  total_trades: number;
+  open_trades: number;
+  completed_trades: number;
+  wins: number;
+  losses: number;
+  breakevens: number;
+  win_rate: number | null;
+  average_win: number | null;
+  average_loss: number | null;
+  average_r: number | null;
+  total_realized_pnl: number;
+  expectancy: number | null;
+  profit_factor: number | null;
+  max_drawdown: number | null;
+  equity_curve: EquityPoint[];
 };
 
 // — Backtests — backend-provided (no frontend recomputation)

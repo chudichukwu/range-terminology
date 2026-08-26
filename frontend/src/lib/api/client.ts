@@ -123,5 +123,21 @@ export const api = {
   getBacktest: (runId: string, signal?: AbortSignal) => apiFetch<import("./types").BacktestDetail>(`/backtests/${runId}`, { signal }),
   runBacktest: (body: { strategy_id: string; start_ms: number; end_ms: number; initial_capital: number; fee_rate?: number; slippage_rate?: number }) =>
     apiFetch<import("./types").BacktestDetail>("/backtests", { method: "POST", body }),
+  listTrades: (params?: { symbol?: string; result?: string; limit?: number }, signal?: AbortSignal) => {
+    const sp = new URLSearchParams();
+    if (params?.symbol) sp.set("symbol", params.symbol);
+    if (params?.result) sp.set("result", params.result);
+    if (params?.limit) sp.set("limit", String(params.limit));
+    const qs = sp.toString() ? `?${sp.toString()}` : "";
+    return apiFetch<import("./types").StoredTrade[]>(`/trades${qs}`, { signal });
+  },
+  getTrade: (tradeId: string, signal?: AbortSignal) => apiFetch<import("./types").StoredTrade>(`/trades/${tradeId}`, { signal }),
+  getTradeStatistics: (params?: { symbol?: string; strategy_id?: string }, signal?: AbortSignal) => {
+    const sp = new URLSearchParams();
+    if (params?.symbol) sp.set("symbol", params.symbol);
+    if (params?.strategy_id) sp.set("strategy_id", params.strategy_id);
+    const qs = sp.toString() ? `?${sp.toString()}` : "";
+    return apiFetch<import("./types").TradeStatistics>(`/trades/statistics${qs}`, { signal });
+  },
   listTimeframes: (signal?: AbortSignal) => apiFetch<{ timeframes: string[] }>("/markets/timeframes", { signal }),
 };
