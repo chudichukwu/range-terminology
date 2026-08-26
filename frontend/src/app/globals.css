@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ======================================================
+   Obsidian Violet — Design Tokens (CSS Variables)
+   Single source of truth; Tailwind maps to these.
+   ====================================================== */
+
+:root {
+  /* — Background — deep obsidian / purple-black — */
+  --color-bg-base: #09070f;
+  --color-bg-subtle: #0e0b1c;
+  --color-bg-surface-1: #151226;
+  --color-bg-surface-2: #1b1630;
+  --color-bg-surface-3: #241e3d;
+  --color-bg-overlay: rgba(9, 7, 15, 0.82);
+
+  /* — Border — violet-tinted graphite — */
+  --color-border-subtle: #242041;
+  --color-border-strong: #302a55;
+  --color-border-focus: rgba(124, 92, 255, 0.45);
+
+  /* — Text — */
+  --color-text-primary: #e9e6f2;
+  --color-text-secondary: #9e98b8;
+  --color-text-tertiary: #706a8e;
+  --color-text-disabled: #4f4a68;
+  --color-text-inverse: #09070f;
+
+  /* — Semantic channels — locked — */
+  --color-bull: #1db954;
+  --color-bull-subtle: rgba(29, 185, 84, 0.08);
+  --color-bear: #ef4444;
+  --color-bear-subtle: rgba(239, 68, 68, 0.08);
+  --color-danger: #f59e0b;
+  --color-danger-strong: #d97706;
+  --color-danger-subtle: rgba(245, 158, 11, 0.08);
+  --color-danger-bg: rgba(245, 158, 11, 0.1);
+  --color-range: #8ea1be;
+  --color-range-subtle: rgba(142, 161, 190, 0.09);
+  --color-range-strong: #b0c4de;
+  --color-zone-lower: rgba(142, 161, 190, 0.08);
+  --color-zone-middle: rgba(107, 122, 144, 0.06);
+  --color-zone-upper: rgba(142, 161, 190, 0.08);
+  --color-osc: #9a8bb5;
+  --color-osc-subtle: rgba(154, 139, 181, 0.08);
+  --color-osc-strong: #b8a9d6;
+  --color-divergence-bull: #22c55e;
+  --color-divergence-bear: #f97316;
+  --color-slate: #8ea1be;
+  --color-purple-accent: #7c5cff;
+  --color-purple-subtle: rgba(124, 92, 255, 0.1);
+  --color-purple-strong: #9f7aea;
+
+  --color-success: #22c55e;
+  --color-success-subtle: rgba(34, 197, 94, 0.08);
+  --color-warning: #facc15;
+  --color-info: #38bdf8;
+  --color-neutral: #64748b;
+
+  /* — Chart — */
+  --color-chart-grid: #242041;
+  --color-chart-axis: #706a8e;
+  --color-chart-crosshair: #3d3660;
+  --color-chart-candle-bull: var(--color-bull);
+  --color-chart-candle-bear: var(--color-bear);
+  --color-chart-candle-wick: #706a8e;
+  --color-chart-volume-bull: rgba(29, 185, 84, 0.2);
+  --color-chart-volume-bear: rgba(239, 68, 68, 0.2);
+  --color-chart-price-line: #e9e6f2;
+
+  /* — Typography — */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --font-display: "Inter", ui-sans-serif;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.375rem;
+  --text-3xl: 1.75rem;
+
+  /* — Spacing — 4px base — */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* — Radii — */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* — Borders — */
+  --border-hairline: 1px;
+  --border-strong: 1.5px;
+
+  /* — Shadows — violet-tinged — */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(124, 92, 255, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(124, 92, 255, 0.08);
+  --shadow-glow-purple: 0 0 0 1px rgba(124, 92, 255, 0.12), 0 0 20px rgba(124, 92, 255, 0.08);
+
+  /* — Sizing — */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --ribbon-height: 36px;
+  --header-height: 44px;
+
+  /* — Motion — */
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 240ms;
+}
+
+/* — Base — */
+html {
+  scrollbar-gutter: stable;
+  color-scheme: dark;
+}
+body {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+* {
+  border-color: var(--color-border-subtle);
+}
+
+/* — Focus — double ring for dark — */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--color-bg-base);
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* — Monospace numeric — */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* — Scrollbar — subtle violet — */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2640;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3458;
+}
+
+/* — Reduced motion — */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* — Utilities for density — */
+[data-density="compact"] {
+  --density-row: 36px;
+  --density-input: 32px;
+}
+[data-density="comfortable"] {
+  --density-row: 44px;
+  --density-input: 36px;
+}

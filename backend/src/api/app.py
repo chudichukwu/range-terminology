@@ -30,6 +30,9 @@ from api.routers import (
     admin as admin_router_module,
 )
 from api.routers import (
+    analysis as analysis_router,
+)
+from api.routers import (
     auth as auth_router,
 )
 from api.routers import (
@@ -119,6 +122,7 @@ def create_app(
     application.include_router(trades_router.router)
     application.include_router(exchanges_router.router)
     application.include_router(admin_router_module.router)
+    application.include_router(analysis_router.router)
 
     @application.get("/health", tags=["meta"])
     def health() -> dict[str, str]:
