@@ -12,7 +12,7 @@ export function TradingChart({ analysis }: { analysis: PairAnalysis | null }) {
    let disposed = false; let resize: ResizeObserver | undefined;
    void import("lightweight-charts").then(lwc => {
      if (disposed || !host.current) return;
-     chart.current = lwc.createChart(host.current, { layout: { background: { type: lwc.ColorType.Solid, color: "#090e17" }, textColor: "#8199a7" }, grid: { vertLines: { color: "#1b2832" }, horzLines: { color: "#1b2832" } }, rightPriceScale: { borderColor: "#2c3b46" }, timeScale: { borderColor: "#2c3b46", timeVisible: true }, crosshair: { mode: lwc.CrosshairMode.Normal } });
+     chart.current = lwc.createChart(host.current, { layout: { background: { type: lwc.ColorType.Solid, color: "#060606" }, textColor: "#8199a7" }, grid: { vertLines: { color: "#161616" }, horzLines: { color: "#161616" } }, rightPriceScale: { borderColor: "#292929" }, timeScale: { borderColor: "#292929", timeVisible: true }, crosshair: { mode: lwc.CrosshairMode.Normal } });
      series.current = chart.current.addCandlestickSeries({ upColor: "#92caa3", downColor: "#d88279", wickUpColor: "#92caa3", wickDownColor: "#d88279", borderVisible: false });
      resize = new ResizeObserver(() => { if (host.current) chart.current?.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); });
      resize.observe(host.current); chart.current.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); setReady(true);
