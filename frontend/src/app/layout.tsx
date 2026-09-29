@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CursorGlow } from "@/components/shell/CursorGlow";
 
 export const metadata: Metadata = {
   title: "Grandblue",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         {children}
+        <CursorGlow />
       </body>
     </html>
   );

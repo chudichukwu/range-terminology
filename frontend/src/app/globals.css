@@ -221,3 +221,29 @@ body {
 
 /* A quiet, personal space alongside the market terminal. */
 .journal-workspace{max-width:1400px;margin:auto}.journal-toolbar{display:flex;align-items:center;gap:14px;margin:24px 0}.journal-toolbar input{flex:1;min-width:0}.journal-toolbar input,.journal-toolbar select,.journal-editor input,.journal-editor select,.journal-editor textarea{background:#111;border:1px solid #303030;border-radius:12px;color:#eee;padding:13px 15px;font:inherit;width:100%}.journal-toolbar select{width:auto}.journal-toolbar>span{white-space:nowrap}.journal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.journal-card,.journal-editor{padding:28px}.journal-card h2{font-size:23px;line-height:1.35;margin:23px 0 10px;overflow-wrap:anywhere}.journal-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.journal-editor-heading h2{font-size:26px;margin:8px 0 24px}.journal-category{color:#86aaff;background:#13213d;border-radius:20px;padding:6px 11px;font-size:12px}.journal-market{font-size:12px;letter-spacing:.06em;color:#87aaff}.journal-preview{white-space:pre-wrap;overflow-wrap:anywhere;color:#aaa;line-height:1.8;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;min-height:120px;margin:18px 0 24px}.journal-delete{color:#969696;font-size:13px;padding:10px}.journal-delete:hover{color:#ff8c8c}.journal-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}.journal-editor textarea{line-height:1.8;resize:vertical;min-height:260px;margin-bottom:20px}.journal-empty{text-align:center;padding:70px 24px}.journal-empty h2{font-size:28px;margin:20px 0 10px}.journal-empty p{margin-bottom:26px}.journal-empty-mark{font-size:36px;color:#709cff}.journal-editor .field{display:flex;flex-direction:column;gap:10px}.journal-editor .field>span{font-size:13px;color:#aaa}@media(max-width:700px){.journal-grid{grid-template-columns:1fr}.journal-fields{grid-template-columns:1fr}.journal-card,.journal-editor{padding:20px}.journal-toolbar{flex-wrap:wrap}.journal-toolbar input{flex-basis:100%}.journal-editor-heading{flex-wrap:wrap}.journal-toolbar select{flex:1}.journal-empty{padding:45px 20px}}
+
+/* Precise blue pointer with a quiet halo; native text/chart cursors stay intact. */
+.cursor-glow {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  background: radial-gradient(circle, rgb(56 117 255 / 12%) 0%, rgb(36 99 255 / 5%) 35%, transparent 70%);
+  transition: opacity 160ms ease;
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  body { cursor: url('/cursor.svg') 4 3, auto; }
+  a, button, [role="button"], select, summary { cursor: url('/cursor.svg') 4 3, pointer; }
+  input, textarea, [contenteditable="true"] { cursor: text; }
+  button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .cursor-glow { display: block; }
+}
