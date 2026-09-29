@@ -1,4 +1,4 @@
-# Range Trading Terminal
+# Grandblue
 
 A personal watchlist scanner, chart workspace, alert inbox and historical replay tool.
 

@@ -36,8 +36,8 @@ export default function RegisterPage() {
   return (
     <div className="space-y-4">
       <div className="text-center">
-        <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-sm text-[12px] font-bold text-white" style={{ background: "var(--color-purple-accent)", color: "#11160e" }}>
-          R
+        <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-sm text-[12px] font-bold text-white" style={{ background: "var(--color-purple-accent)", color: "#061020" }}>
+          G
         </div>
         <h1 className="mt-3 text-[18px] font-semibold tracking-tight text-[var(--color-text-primary)]">Create account</h1>
         <p className="mono mt-1 text-[11px] tracking-wide text-[var(--color-text-tertiary)]">Build your trading workspace</p>
@@ -45,7 +45,7 @@ export default function RegisterPage() {
 
       <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-5 shadow-md">
         <div className="mb-4 flex items-center justify-between">
-          <span className="text-sm text-[var(--color-text-secondary)]">Range Terminal</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Grandblue</span>
           <Link href="/login" className="text-[12px] text-[var(--color-purple-accent)] hover:underline">
             Sign in →
           </Link>

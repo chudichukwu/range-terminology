@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Range Trading Terminal",
+  title: "Grandblue",
   description: "Your range-trading workspace: scan watchlists, track setups, and backtest your rules.",
   robots: { index: false, follow: false }
 };

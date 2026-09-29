@@ -12,7 +12,7 @@ export function TradingChart({ analysis }: { analysis: PairAnalysis | null }) {
    let disposed = false; let resize: ResizeObserver | undefined;
    void import("lightweight-charts").then(lwc => {
      if (disposed || !host.current) return;
-     chart.current = lwc.createChart(host.current, { layout: { background: { type: lwc.ColorType.Solid, color: "#121a21" }, textColor: "#8199a7" }, grid: { vertLines: { color: "#1b2832" }, horzLines: { color: "#1b2832" } }, rightPriceScale: { borderColor: "#2c3b46" }, timeScale: { borderColor: "#2c3b46", timeVisible: true }, crosshair: { mode: lwc.CrosshairMode.Normal } });
+     chart.current = lwc.createChart(host.current, { layout: { background: { type: lwc.ColorType.Solid, color: "#090e17" }, textColor: "#8199a7" }, grid: { vertLines: { color: "#1b2832" }, horzLines: { color: "#1b2832" } }, rightPriceScale: { borderColor: "#2c3b46" }, timeScale: { borderColor: "#2c3b46", timeVisible: true }, crosshair: { mode: lwc.CrosshairMode.Normal } });
      series.current = chart.current.addCandlestickSeries({ upColor: "#92caa3", downColor: "#d88279", wickUpColor: "#92caa3", wickDownColor: "#d88279", borderVisible: false });
      resize = new ResizeObserver(() => { if (host.current) chart.current?.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); });
      resize.observe(host.current); chart.current.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); setReady(true);
@@ -25,7 +25,7 @@ export function TradingChart({ analysis }: { analysis: PairAnalysis | null }) {
    s.setData(analysis.candles.map(c => ({ time: Math.floor(c.timestamp / 1000) as UTCTimestamp, open: c.open, high: c.high, low: c.low, close: c.close })).sort((a, b) => a.time - b.time));
    for (const line of lines.current) s.removePriceLine(line); lines.current = [];
    const add = (price: number | null | undefined, title: string, color: string) => { if (price != null && Number.isFinite(price)) lines.current.push(s.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title })); };
-   add(analysis.range.high, analysis.range.metadata.reclaimed ? "Reclaimed high" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range high" : "Candidate high", "#b9d7a0"); add(analysis.range.low, analysis.range.metadata.reclaimed ? "Reclaimed low" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range low" : "Candidate low", "#b9d7a0");
+   add(analysis.range.high, analysis.range.metadata.reclaimed ? "Reclaimed high" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range high" : "Candidate high", "#87baff"); add(analysis.range.low, analysis.range.metadata.reclaimed ? "Reclaimed low" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range low" : "Candidate low", "#87baff");
    add(analysis.range.metadata.midpoint as number | undefined, "Equilibrium · 50%", "#acb6d5");
    add(analysis.risk?.metadata.tp2 as number | undefined, "TP2 · opposite edge", "#93c7b9");
    add(analysis.risk?.stop_price, "Invalidation", "#d88279"); add(analysis.risk?.target_price, "TP1", "#93c7b9");

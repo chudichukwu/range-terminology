@@ -22,7 +22,7 @@ export function EquityCurve({ points, initialCapital }: { points: EquityPoint[];
         timeScale: { borderColor: "#34414c", timeVisible: true },
         crosshair: { vertLine: { color: "#526673", width: 1, style: 1 }, horzLine: { color: "#526673", width: 1, style: 1 } }
       });
-      const area = chart.addAreaSeries({ lineColor: "#b9ed83", topColor: "rgba(185,237,131,0.22)", bottomColor: "rgba(185,237,131,0.02)", lineWidth: 2 });
+      const area = chart.addAreaSeries({ lineColor: "#65aaff", topColor: "rgba(101,170,255,0.22)", bottomColor: "rgba(101,170,255,0.02)", lineWidth: 2 });
       const line = chart.addLineSeries({ color: "rgba(142,161,190,0.5)", lineWidth: 1, lineStyle: 2 });
       const data = points.map((p) => ({ time: Math.floor(p.timestamp_ms / 1000) as UTCTimestamp, value: p.equity }));
       const peakData = points.map((p) => ({ time: Math.floor(p.timestamp_ms / 1000) as UTCTimestamp, value: p.peak_equity }));

@@ -16,7 +16,7 @@ export function Button({
     md: "h-8 px-3.5 text-[12px]"
   } as const;
   const variants: Record<Variant, string> = {
-    primary: "bg-[var(--color-purple-accent)] text-[#172314] hover:bg-[#d0f6a9] shadow-sm",
+    primary: "bg-[var(--color-purple-accent)] text-[#061020] hover:bg-[#a5cfff] shadow-sm",
     secondary:
       "border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]",
     ghost: "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]",
