@@ -1,231 +1,38 @@
 "use client";
-
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { IChartApi, ISeriesApi, IPriceLine, UTCTimestamp } from "lightweight-charts";
 import type { PairAnalysis } from "@/lib/api/types";
-
-type Props = {
-  analysis: PairAnalysis | null;
-};
-
-export function TradingChart({ analysis }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const candleSeriesRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let destroyed = false;
-
-    (async () => {
-      const lwc = await import("lightweight-charts");
-      if (destroyed || !containerRef.current) return;
-
-      const chart = lwc.createChart(containerRef.current, {
-        layout: {
-          background: { type: lwc.ColorType.Solid, color: "#151226" },
-          textColor: "#9e98b8"
-        },
-        grid: {
-          vertLines: { color: "#242041" },
-          horzLines: { color: "#242041" }
-        },
-        rightPriceScale: {
-          borderColor: "#302A55"
-        },
-        timeScale: {
-          borderColor: "#302A55",
-          timeVisible: true,
-          secondsVisible: false
-        },
-        crosshair: {
-          vertLine: { color: "#3D3660", width: 1, style: 1 },
-          horzLine: { color: "#3D3660", width: 1, style: 1 }
-        },
-        handleScroll: true,
-        handleScale: true
-      });
-
-      const series = chart.addCandlestickSeries({
-        upColor: "#1db954",
-        downColor: "#ef4444",
-        wickUpColor: "#706a8e",
-        wickDownColor: "#706a8e",
-        borderVisible: false
-      });
-
-      chartRef.current = chart;
-      candleSeriesRef.current = series;
-
-      const ro = new ResizeObserver(() => {
-        if (containerRef.current && chart) {
-          chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
-        }
-      });
-      ro.observe(containerRef.current);
-      // initial size
-      chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
-
-      return () => {
-        ro.disconnect();
-      };
-    })();
-
-    return () => {
-      destroyed = true;
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
-    };
-  }, []);
-
-  // Update data when analysis changes
-  useEffect(() => {
-    if (!candleSeriesRef.current || !analysis) return;
-    const data = analysis.candles
-      .filter((c) => c.is_closed)
-      .map((c) => ({
-        time: Math.floor(c.timestamp / 1000) as any,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close
-      }))
-      .sort((a, b) => (a.time as number) - (b.time as number));
-    candleSeriesRef.current.setData(data);
-
-    // Fit
-    chartRef.current?.timeScale().fitContent();
-
-    // Range overlays via price lines
-    const priceLines: any[] = [];
-    const addLine = (price: number | null | undefined, opts: any) => {
-      if (price === null || price === undefined || !Number.isFinite(price)) return;
-      const line = candleSeriesRef.current.createPriceLine(opts);
-      priceLines.push(line);
-    };
-
-    // Range high/low — slate, solid when tradable else dashed
-    const isSolid = analysis.range.is_tradable && analysis.range.status === "valid";
-    addLine(analysis.range.high, {
-      price: analysis.range.high!,
-      color: "#8ea1be",
-      lineWidth: 1.5,
-      lineStyle: isSolid ? 0 : 2,
-      axisLabelVisible: true,
-      title: "R HIGH"
-    });
-    addLine(analysis.range.low, {
-      price: analysis.range.low!,
-      color: "#8ea1be",
-      lineWidth: 1.5,
-      lineStyle: isSolid ? 0 : 2,
-      axisLabelVisible: true,
-      title: "R LOW"
-    });
-
-    // Risk levels — from backend RiskDecision preview
-    if (analysis.risk) {
-      if (analysis.risk.entry_price !== null) {
-        addLine(analysis.risk.entry_price, { price: analysis.risk.entry_price, color: "#38bdf8", lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: "ENTRY" });
-      }
-      if (analysis.risk.stop_price !== null) {
-        addLine(analysis.risk.stop_price, { price: analysis.risk.stop_price, color: "#f59e0b", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "STOP" });
-      }
-      if (analysis.risk.target_price !== null) {
-        addLine(analysis.risk.target_price, { price: analysis.risk.target_price, color: "#22c55e", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TARGET" });
-      }
-    }
-
-    // Signal markers — backend-provided direction
-    const markers: any[] = [];
-    const last = analysis.candles.filter((c) => c.is_closed).at(-1);
-    if (last && analysis.signal.direction !== "none") {
-      const isLong = analysis.signal.direction === "long";
-      markers.push({
-        time: Math.floor(last.timestamp / 1000) as any,
-        position: isLong ? "belowBar" : "aboveBar",
-        color: isLong ? "#1db954" : "#ef4444",
-        shape: isLong ? "arrowUp" : "arrowDown",
-        text: isLong ? "LONG" : "SHORT"
-      });
-    }
-    candleSeriesRef.current.setMarkers(markers);
-
-    return () => {
-      // cleanup price lines on next update (re-created above)
-    };
-  }, [analysis]);
-
-  // a11y fallback table summary
-  if (!analysis) {
-    return (
-      <div className="flex h-[420px] items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-6 text-[13px] text-[var(--color-text-tertiary)]">
-        Loading chart…
-      </div>
-    );
-  }
-
-  const isStale = analysis.freshness.is_stale;
-  const tradable = analysis.range.is_tradable;
-
-  return (
-    <div className="space-y-2">
-      <div
-        ref={containerRef}
-        role="img"
-        aria-label={`Chart for ${analysis.symbol} ${analysis.timeframe} — Range ${analysis.range.status}, Regime ${analysis.regime.value}, signal ${analysis.signal.direction}`}
-        className="h-[420px] w-full overflow-hidden rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] md:h-[52vh] md:min-h-[420px]"
-      />
-      {/* Range zone legend — restrained hatch via CSS, not dominant */}
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="mono uppercase tracking-wide text-[var(--color-text-tertiary)]">Zones:</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-6 rounded-xs border border-[rgba(142,161,190,0.3)] bg-[rgba(142,161,190,0.08)]" aria-hidden />
-          <span className="text-[var(--color-text-secondary)]">Lower → LONG</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="h-2 w-6 rounded-xs border border-[rgba(107,122,144,0.2)] bg-[rgba(107,122,144,0.06)]"
-            style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent 0 4px, rgba(107,122,144,0.12) 4px 5px)" }}
-            aria-hidden
-          />
-          <span className="text-[var(--color-text-secondary)]">Middle — NO-TRADE</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-6 rounded-xs border border-[rgba(142,161,190,0.3)] bg-[rgba(142,161,190,0.08)]" aria-hidden />
-          <span className="text-[var(--color-text-secondary)]">Upper → SHORT</span>
-        </span>
-        <span className="ml-auto mono text-[11px] text-[var(--color-text-tertiary)]">
-          {!tradable ? "Bounds not tradable — dashed" : "Solid bounds — tradable"} · {isStale ? "Stale data — faded" : "Live"} · Paper
-        </span>
-      </div>
-      {/* Hidden table fallback for screen readers */}
-      <table className="sr-only">
-        <caption>
-          Candles for {analysis.symbol} {analysis.timeframe}
-        </caption>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Open</th>
-            <th>High</th>
-            <th>Low</th>
-            <th>Close</th>
-          </tr>
-        </thead>
-        <tbody>
-          {analysis.candles.slice(-5).map((c) => (
-            <tr key={c.timestamp}>
-              <td>{new Date(c.timestamp).toISOString()}</td>
-              <td>{c.open}</td>
-              <td>{c.high}</td>
-              <td>{c.low}</td>
-              <td>{c.close}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+export function TradingChart({ analysis }: { analysis: PairAnalysis | null }) {
+ const host = useRef<HTMLDivElement>(null), chart = useRef<IChartApi>(), series = useRef<ISeriesApi<"Candlestick">>();
+ const [sfpMode, setSfpMode] = useState("recent");
+ const allSfps = useMemo(() => analysis?.swing_failures ?? [], [analysis]);
+ const visibleSfps = useMemo(() => sfpMode === "off" ? [] : sfpMode === "range" ? allSfps.filter(e => e.grade === "A+") : sfpMode === "recent" ? allSfps.slice(-3) : allSfps, [sfpMode, allSfps]);
+ const lines = useRef<IPriceLine[]>([]), fitted = useRef(""); const [ready, setReady] = useState(false);
+ useEffect(() => {
+   let disposed = false; let resize: ResizeObserver | undefined;
+   void import("lightweight-charts").then(lwc => {
+     if (disposed || !host.current) return;
+     chart.current = lwc.createChart(host.current, { layout: { background: { type: lwc.ColorType.Solid, color: "#121a21" }, textColor: "#8199a7" }, grid: { vertLines: { color: "#1b2832" }, horzLines: { color: "#1b2832" } }, rightPriceScale: { borderColor: "#2c3b46" }, timeScale: { borderColor: "#2c3b46", timeVisible: true }, crosshair: { mode: lwc.CrosshairMode.Normal } });
+     series.current = chart.current.addCandlestickSeries({ upColor: "#92caa3", downColor: "#d88279", wickUpColor: "#92caa3", wickDownColor: "#d88279", borderVisible: false });
+     resize = new ResizeObserver(() => { if (host.current) chart.current?.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); });
+     resize.observe(host.current); chart.current.applyOptions({ width: host.current.clientWidth, height: host.current.clientHeight }); setReady(true);
+   });
+   return () => { disposed = true; resize?.disconnect(); chart.current?.remove(); chart.current = undefined; series.current = undefined; lines.current = []; };
+ }, []);
+ useEffect(() => {
+   if (!ready || !analysis || !series.current) return;
+   const s = series.current;
+   s.setData(analysis.candles.map(c => ({ time: Math.floor(c.timestamp / 1000) as UTCTimestamp, open: c.open, high: c.high, low: c.low, close: c.close })).sort((a, b) => a.time - b.time));
+   for (const line of lines.current) s.removePriceLine(line); lines.current = [];
+   const add = (price: number | null | undefined, title: string, color: string) => { if (price != null && Number.isFinite(price)) lines.current.push(s.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title })); };
+   add(analysis.range.high, analysis.range.metadata.reclaimed ? "Reclaimed high" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range high" : "Candidate high", "#b9d7a0"); add(analysis.range.low, analysis.range.metadata.reclaimed ? "Reclaimed low" : analysis.range.metadata.structure_confirmed || analysis.range.is_tradable ? "Range low" : "Candidate low", "#b9d7a0");
+   add(analysis.range.metadata.midpoint as number | undefined, "Equilibrium · 50%", "#acb6d5");
+   add(analysis.risk?.metadata.tp2 as number | undefined, "TP2 · opposite edge", "#93c7b9");
+   add(analysis.risk?.stop_price, "Invalidation", "#d88279"); add(analysis.risk?.target_price, "TP1", "#93c7b9");
+   s.setMarkers(visibleSfps.map(e => ({ time: Math.floor(e.timestamp / 1000) as UTCTimestamp, position: e.direction === "bullish" ? "belowBar" as const : "aboveBar" as const, color: e.direction === "bullish" ? "#b9ed83" : "#efae98", shape: e.direction === "bullish" ? "arrowUp" as const : "arrowDown" as const, text: e.grade === "A+" ? "A+" : "" })).sort((a,b) => a.time - b.time));
+   const key = `${analysis.symbol}:${analysis.timeframe}:${analysis.candles[0]?.timestamp}`; if (fitted.current !== key) { chart.current?.timeScale().fitContent(); fitted.current = key; }
+ }, [analysis, ready, visibleSfps]);
+ const latest = visibleSfps.at(-1);
+ const focusLatest = () => { if (latest && analysis) { const bars = analysis.candles; const index = bars.findIndex(b => b.timestamp === latest.timestamp); if (index >= 0) chart.current?.timeScale().setVisibleLogicalRange({ from: Math.max(0, index - 20), to: index + 8 }); } };
+ return <div className="panel"><div className="panel-toolbar"><div><strong>{analysis?.timeframe} chart</strong><p className="muted">Chart range and confirmed swing sweeps</p></div><div className="chips"><select aria-label="SFP visibility" value={sfpMode} onChange={e => setSfpMode(e.target.value)} className="chip"><option value="recent">Latest 3 SFPs</option><option value="range">A+ range SFPs only</option><option value="all">All SFPs ({allSfps.length})</option><option value="off">Hide SFPs</option></select><button className="chip" disabled={!latest} onClick={() => {focusLatest();}}>Latest SFP ↗</button><button className="chip" onClick={() => chart.current?.timeScale().fitContent()}>Reset view</button></div></div><div className="chart-box" ref={host} role="img" aria-label="Candlestick chart with range boundaries, invalidation, and swing-failure markers" /><div className="workspace-footnote" style={{ margin: 0, padding: "12px 18px" }}><span>Swing SFP = pivot sweep · A+ = range-boundary sweep</span><span>Last candle may still be forming</span></div></div>;
 }

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Range Trading Terminal",
-  description: "Professional crypto range-trading research workstation — PAPER / READ-ONLY.",
+  description: "Your range-trading workspace: scan watchlists, track setups, and backtest your rules.",
   robots: { index: false, follow: false }
 };
 

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, ContentContainer } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState, LoadingState } from "@/components/state/StatePrimitives";
 import { StrategyForm, StrategySummary } from "@/components/strategy/StrategyForm";
@@ -146,25 +145,24 @@ export default function StrategyDetailPage({ params }: { params: { id: string } 
     );
   }
 
-  const payloadJson = JSON.stringify({ range_config: rangeConfig, signal_config: signalConfig, risk_config: riskConfig }, null, 2);
   const canonicalStored = JSON.stringify(strategy.payload, null, 2);
 
   return (
     <>
       <PageHeader
         title={strategy.name}
-        description={`${strategy.id.slice(0, 8)} · v${strategy.schema_version} · updated ${new Date(strategy.updated_at_ms).toLocaleString()} · backend hash authoritative`}
+        description={`Your range, entry and exit rules · updated ${new Date(strategy.updated_at_ms).toLocaleString()}`}
         breadcrumbs={[{ label: "Strategies", href: "/strategies" }, { label: strategy.name }]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link href={`/?strategy_id=${strategy.id}&symbol=BTC/USDT`}>
+            <Link href={`/?strategy_id=${strategy.id}&symbol=BTC%2FUSDC%3AUSDC&venue=hyperliquid`}>
               <Button variant="secondary" size="sm">Analyze</Button>
             </Link>
             <Link href="/backtests">
               <Button variant="ghost" size="sm">Backtest →</Button>
             </Link>
             <Button variant="ghost" size="sm" onClick={onDuplicate} disabled={duplicateLoading}>{duplicateLoading ? "Duplicating…" : "Duplicate"}</Button>
-            <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>Delete</Button>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>Disable</Button>
             <Button variant="primary" size="sm" onClick={onSave} disabled={!dirty || saving || !name.trim()}>
               {saving ? "Saving…" : dirty ? "Save changes" : "Saved"}
             </Button>
@@ -179,31 +177,19 @@ export default function StrategyDetailPage({ params }: { params: { id: string } 
           <StrategyForm name={name} setName={setName} active={active} setActive={setActive} rangeConfig={rangeConfig} setRangeConfig={setRangeConfig} signalConfig={signalConfig} setSignalConfig={setSignalConfig} riskConfig={riskConfig} setRiskConfig={setRiskConfig} />
           <div className="space-y-3">
             <StrategySummary name={name} active={active} rangeConfig={rangeConfig} signalConfig={signalConfig} riskConfig={riskConfig} payloadJson={canonicalStored} updatedAt={strategy.updated_at_ms} />
-            <div className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Reproducibility</div>
-              <div className="mono mt-1 text-[11px] text-[var(--color-text-secondary)]">Stored id {strategy.id} · owner {strategy.owner_user_id.slice(0, 8)} · schema {strategy.schema_version}</div>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-[11px] font-medium text-[var(--color-text-secondary)]">Draft payload (unsaved preview)</summary>
-                <pre className="mono mt-1 max-h-32 overflow-auto rounded-sm bg-[var(--color-bg-surface-2)] p-2 text-[11px] text-[var(--color-text-tertiary)]">{payloadJson}</pre>
-              </details>
-              <div className="mt-2 flex gap-1">
-                <Badge variant={dirty ? "warning" : "success"}>{dirty ? "Unsaved" : "In sync with backend"}</Badge>
-                <Badge variant="neutral">backend validates</Badge>
-              </div>
-            </div>
 
             <div className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Handoff</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Use this playbook</div>
               <div className="mt-2 flex flex-col gap-2">
-                <Link href={`/?strategy_id=${strategy.id}&symbol=BTC/USDT`} className="rounded-sm bg-[var(--color-purple-accent)] px-3 py-1.5 text-center text-[12px] font-medium text-white hover:bg-[#6d4af0]">Analyze with this strategy →</Link>
+                <Link href={`/?strategy_id=${strategy.id}&symbol=BTC%2FUSDC%3AUSDC&venue=hyperliquid`} className="rounded-sm bg-[var(--color-purple-accent)] px-3 py-1.5 text-center text-[12px] font-medium text-[#172314] hover:opacity-90">Analyze with this strategy →</Link>
                 <Link href="/backtests" className="rounded-sm border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-center text-[12px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Backtests (strategy selectable there)</Link>
-                <span className="mono text-[11px] text-[var(--color-text-tertiary)]">Full backtest UI arrives Phase 14 — deep-link only now.</span>
+
               </div>
             </div>
           </div>
         </div>
 
-        <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Disable strategy?" description="Backend soft-deletes (active=false). Historical trades/backtests referencing it are preserved per backend.">
+        <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Disable strategy?" description="This removes it from active playbooks. Your historical trades and backtests are preserved.">
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setDeleteOpen(false)}>Cancel</Button>
             <Button variant="danger" onClick={onDelete}>Disable</Button>

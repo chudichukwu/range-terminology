@@ -127,6 +127,8 @@ class RiskEngine:
             raise ValueError(
                 f"Config key 'range_target_fraction' must be within (0, 1], got {fraction}"
             )
+        if not 0 < get_float(cfg, "fixed_stop_percent") < 1:
+            raise ValueError("fixed_stop_percent must be between 0 and 1")
         stop_modes = tuple(m.value for m in StopMethod)
         return RiskParams(
             risk_per_trade=risk_per_trade,
@@ -383,6 +385,12 @@ class RiskEngine:
     ) -> float | RiskDecision:
         """Compute the protective stop for the configured method."""
         is_long = signal.direction is SignalDirection.LONG
+        if params.stop_method is StopMethod.RANGE_PERCENT:
+            bounds = self._require_bounds(signal, shared)
+            if isinstance(bounds, RiskDecision):
+                return bounds
+            low, high = bounds
+            return low * (1 - params.fixed_stop_percent) if is_long else high * (1 + params.fixed_stop_percent)
         if params.stop_method is StopMethod.RANGE:
             bounds = self._require_bounds(signal, shared)
             if isinstance(bounds, RiskDecision):

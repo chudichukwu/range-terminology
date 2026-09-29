@@ -131,6 +131,10 @@ class StructuralRangeDetector(RangeDetector):
         lookback = get_int(cfg, "lookback", 100, minimum=1)
         pivot_window = get_int(cfg, "pivot_window", 2, minimum=1)
         max_drift_ratio = get_float(cfg, "max_drift_ratio", 0.5, minimum=0.0)
+        min_touches = get_int(cfg, "min_touches", 1, minimum=1)
+        tolerance = get_float(cfg, "touch_tolerance", 0.05, minimum=0.0)
+        if tolerance > 0.25:
+            raise ValueError("touch_tolerance must not exceed 0.25 of range width")
         mode = "structural"
         data = validate_ohlcv(df)
         required_rows = 2 * pivot_window + 1
@@ -165,6 +169,13 @@ class StructuralRangeDetector(RangeDetector):
 
         range_high = float(max(highs[i] for i in pivot_highs))
         range_low = float(min(lows[i] for i in pivot_lows))
+        width = range_high - range_low
+        high_touches = sum(abs(float(highs[i]) - range_high) <= width * tolerance for i in pivot_highs)
+        low_touches = sum(abs(float(lows[i]) - range_low) <= width * tolerance for i in pivot_lows)
+        shared_extra.update({"high_touches": high_touches, "low_touches": low_touches,
+                             "touch_tolerance": tolerance, "min_touches": min_touches})
+        if min(high_touches, low_touches) < min_touches:
+            return _degenerate_state(mode, "awaiting_repeated_touches", 0.1, shared_extra)
         containment = self._containment_share(closes, range_low, range_high)
         touch_scale = min(len(pivot_highs), len(pivot_lows)) / 3.0
         touch_scale = min(touch_scale, 1.0)

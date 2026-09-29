@@ -20,7 +20,7 @@ export type UserOut = {
 export type TokenResponse = { access_token: string; token_type: "bearer"; user: UserOut };
 
 // — Range / Regime — backend source of truth (must match DESIGN.md §6)
-export type RangeStatus = "valid" | "degenerate" | "insufficient_data";
+export type RangeStatus = "valid" | "degenerate" | "insufficient_data" | "manual" | "ranging" | "transition" | "trending" | "breakout";
 export type MarketRegime = "ranging" | "trending_up" | "trending_down" | "transitional" | "insufficient_data";
 
 // — Watchlists —
@@ -49,7 +49,7 @@ export type Strategy = {
 };
 
 // — Market data —
-export type Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+export type Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d" | "1w";
 export type MarketCandle = {
   timestamp: number;
   open: number;
@@ -147,6 +147,8 @@ export type BacktestStatistics = {
   max_drawdown: number | null;
 };
 export type BacktestTrade = {
+  exit_fills?: { price:number; quantity:number; timestamp:number; reason:string }[];
+  range_timeframe?: string | null;
   trade_id: string;
   symbol: string;
   direction: string;
@@ -172,6 +174,27 @@ export type BacktestDetail = BacktestRunSummary & {
   engine_version: string;
 };
 
+// — Datasets — authoritative historical coverage (persistence DatasetSummary)
+export type DatasetIssue = {
+  kind: string;
+  detail: string;
+  index: number | null;
+  gap_start_ms: number | null;
+  gap_end_ms: number | null;
+};
+export type Dataset = {
+  symbol: string;
+  timeframe: string;
+  source: string;
+  candle_count: number;
+  first_timestamp_ms: number | null;
+  last_timestamp_ms: number | null;
+  quality_status: string;
+  issues: DatasetIssue[];
+  ingested_at_ms: number;
+  updated_at_ms: number;
+};
+
 // — Exchange connections —
 export type ExchangeConnection = {
   id: string;
@@ -183,7 +206,7 @@ export type ExchangeConnection = {
   updated_at_ms: number;
 };
 
-// — Admin —
+// — Admin — backend-provided operational facts
 export type SystemHealth = {
   status: string;
   schema_version: number;
@@ -202,6 +225,19 @@ export type AuditEvent = {
   timestamp_ms: number;
   outcome: string;
   metadata: Record<string, unknown>;
+};
+export type AdminUser = {
+  id: string;
+  email: string;
+  role: string;
+  active: boolean;
+  created_at_ms: number;
+  updated_at_ms: number;
+  last_login_at_ms: number | null;
+};
+export type TradingActivity = {
+  totals: { trades: number; wins: number; losses: number; open: number; backtest_runs: number };
+  recent_backtests: { run_id: string; symbol: string; timeframe: string; total_trades: number; final_equity: number; created_at_ms: number }[];
 };
 
 // — Pair analysis — backend-provided (analysis service)
@@ -274,6 +310,9 @@ export type FreshnessInfo = {
   last_closed_timestamp_ms: number | null;
 };
 export type PairAnalysis = {
+  market_state?: string;
+  timeframe_context?: Record<string, { state:string; trend:string|null; adx:number|null; atr:number|null; low:number|null; high:number|null; midpoint:number|null; reason:string; role:string }>;
+  swing_failures: { direction: "bullish" | "bearish"; level: number; timestamp: number; swing_timestamp: number; grade?: string | null; kind?: string; range_timeframe?: string }[];
   symbol: string;
   timeframe: Timeframe;
   strategy_id: string | null;

@@ -267,13 +267,14 @@ class TestTimeframeModel:
             "1h": 3_600_000,
             "4h": 14_400_000,
             "1d": 86_400_000,
+            "1w": 604_800_000,
         }
         assert {tf.value: tf.duration_ms for tf in Timeframe} == expected
 
     @pytest.mark.parametrize(("raw", "expected"), [
         ("1m", Timeframe.M1), ("5M", Timeframe.M5), ("15m", Timeframe.M15),
         ("30m", Timeframe.M30), ("1H", Timeframe.H1), ("4h", Timeframe.H4),
-        ("1D", Timeframe.D1),
+        ("1D", Timeframe.D1), ("1W", Timeframe.W1),
     ])
     def test_case_insensitive_normalization(self, raw: str, expected: Timeframe) -> None:
         assert Timeframe.parse(raw) is expected

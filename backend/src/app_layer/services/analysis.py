@@ -9,21 +9,25 @@ from __future__ import annotations
 
 import math
 import time
+from dataclasses import replace
 from typing import Any
 
 import pandas as pd
 
 from app_layer.errors import ValidationError
 from app_layer.services.markets import MarketDataFacade
+from app_layer.services.playbook import range_touch_preset
 from app_layer.services.strategies import StrategyConfigService
 from backtesting.regime import MarketRegime, classify_regime, efficiency_ratio
 from market_data.models import CandleDataset
+from market_data.validation import validate_sequence
 from range_engine.base import RangeState
 from range_engine.factory import RangeEngineFactory
 from risk_engine.base import AccountRiskState, RiskDecision
 from risk_engine.engine import RiskEngine
 from signal_engine.base import Signal
 from signal_engine.engine import RangeSignalEngine
+from signal_engine.structure import swing_failures, touch_signal
 
 _STALE_THRESHOLD_MS = 5 * 60_000  # 5 minutes
 
@@ -78,9 +82,25 @@ class PairAnalysisService:
         limit: int = 200,
         now_ms: int | None = None,
     ) -> dict[str, Any]:
+        payload = (
+            self._strategies.get(actor, strategy_id).payload()
+            if strategy_id
+            else range_touch_preset()
+        )
+        if payload.get("range_config", {}).get("mode") == "balanced":
+            from app_layer.services.balanced_analysis import analyze_balanced
+
+            name = (
+                self._strategies.get(actor, strategy_id).name
+                if strategy_id
+                else "Confirmed range · starting settings"
+            )
+            return analyze_balanced(
+                self._markets, actor, symbol, timeframe, payload, strategy_id, name, limit, now_ms
+            )
         # --- fetch market data (delegates validation to facade) ---
         dataset: CandleDataset = self._markets.candles(
-            symbol, timeframe, limit=limit, include_current=False
+            symbol, timeframe, limit=limit, include_current=True
         )
         ticker: dict[str, Any] | None = None
         try:
@@ -89,10 +109,11 @@ class PairAnalysisService:
             ticker = None  # ticker is best-effort; analysis proceeds
 
         # --- resolve strategy configs (if provided) ---
-        range_config: dict[str, Any] = {}
-        signal_config: dict[str, Any] = {}
-        risk_config: dict[str, Any] = {}
-        strategy_name: str | None = None
+        preset = range_touch_preset()
+        range_config = preset["range_config"]
+        signal_config = preset["signal_config"]
+        risk_config = preset["risk_config"]
+        strategy_name: str | None = "Range touch · starting settings"
         if strategy_id:
             cfg = self._strategies.get(actor, strategy_id)
             payload = cfg.payload()
@@ -175,24 +196,51 @@ class PairAnalysisService:
                     metadata={"reason": "no_price_available"},
                 )
             else:
-                signal = engine.evaluate(
-                    price_for_signal,
-                    range_state,
-                    config=signal_config if signal_config else None,
-                )
+                if signal_config.get("entry_mode") == "touch" and dataset.candles:
+                    current = dataset.candles[-1]
+                    # A completed last candle must not contribute to its own levels.
+                    before = df if not current.is_closed else df.iloc[:-1]
+                    range_state = RangeEngineFactory.detect(before, range_config or None)
+                    signal = touch_signal(
+                        {
+                            "open": current.open,
+                            "high": current.high,
+                            "low": current.low,
+                            "close": current.close,
+                        },
+                        range_state,
+                        signal_config,
+                    )
+                else:
+                    signal = engine.evaluate(
+                        price_for_signal, range_state, config=signal_config or None
+                    )
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
+
+        closed_quality = validate_sequence(
+            dataset.symbol, dataset.timeframe, dataset.closed_candles
+        ).report
+        quality_issues = set(closed_quality.issue_kinds) | (
+            set(dataset.quality.issue_kinds) - {"unclosed_candle_present"}
+        )
+        if quality_issues:
+            from signal_engine.base import SignalDirection, SignalReason
+
+            signal = replace(
+                signal,
+                direction=SignalDirection.NONE,
+                reason=SignalReason.NON_TRADABLE_RANGE,
+                confidence=0.0,
+                metadata={**signal.metadata, "blocked_by": "data_quality"},
+            )
 
         # Oscillator metadata (from range_state metadata when oscillator_confirmed)
         osc_value = _safe_float(range_state.metadata.get("oscillator_value"))
         osc_raw = range_state.metadata.get("oscillator")
         osc_type = osc_raw if isinstance(osc_raw, str) else None
-        osc_overbought = _safe_float(
-            range_state.metadata.get("overbought_threshold")
-        )
-        osc_oversold = _safe_float(
-            range_state.metadata.get("oversold_threshold")
-        )
+        osc_overbought = _safe_float(range_state.metadata.get("overbought_threshold"))
+        osc_oversold = _safe_float(range_state.metadata.get("oversold_threshold"))
         confirmation_val = range_state.metadata.get("confirmation")
         confirmation_bool: bool | None = (
             confirmation_val if isinstance(confirmation_val, bool) else None
@@ -214,7 +262,7 @@ class PairAnalysisService:
             )
             risk_engine = RiskEngine(risk_config if risk_config else None)
             try:
-                risk_decision = risk_engine.evaluate(signal, account, price=last_price)
+                risk_decision = risk_engine.evaluate(signal, account, price=signal.price)
             except ValueError:
                 risk_decision = None
 
@@ -229,6 +277,45 @@ class PairAnalysisService:
             if c.is_closed:
                 last_closed_ts = c.timestamp
                 break
+
+        if (
+            last_closed_ts is None
+            or now > last_closed_ts + 2 * dataset.timeframe.duration_ms + _STALE_THRESHOLD_MS
+        ):
+            is_stale = True
+        if is_stale:
+            from signal_engine.base import SignalDirection, SignalReason
+
+            signal = replace(
+                signal,
+                direction=SignalDirection.NONE,
+                reason=SignalReason.NON_TRADABLE_RANGE,
+                confidence=0.0,
+                metadata={**signal.metadata, "blocked_by": "stale_history"},
+            )
+            risk_decision = None
+        elif signal.is_actionable and signal_config.get("entry_mode") == "touch":
+            # A touch that has already breached its invalidation is no longer actionable.
+            stop = (
+                None
+                if risk_decision is None
+                else (risk_decision.stop_price or risk_decision.metadata.get("stop_price"))
+            )
+            current = dataset.candles[-1]
+            if isinstance(stop, (int, float)) and (
+                (signal.direction.value == "long" and current.low <= stop)
+                or (signal.direction.value == "short" and current.high >= stop)
+            ):
+                from signal_engine.base import SignalDirection, SignalReason
+
+                signal = replace(
+                    signal,
+                    direction=SignalDirection.NONE,
+                    reason=SignalReason.NON_TRADABLE_RANGE,
+                    confidence=0.0,
+                    metadata={**signal.metadata, "blocked_by": "invalidation_breached"},
+                )
+                risk_decision = None
 
         # Build response dict matching AnalysisOut shape
         def _finite_or_none(v: float) -> float | None:
@@ -274,6 +361,7 @@ class PairAnalysisService:
             }
 
         return {
+            "swing_failures": swing_failures(df),
             "symbol": dataset.symbol,
             "timeframe": dataset.timeframe.value,
             "strategy_id": strategy_id,
@@ -282,8 +370,8 @@ class PairAnalysisService:
             "ticker_bid": _safe_float(ticker.get("bid")) if ticker else None,
             "ticker_ask": _safe_float(ticker.get("ask")) if ticker else None,
             "ticker_timestamp_ms": (
-                ticker.get("timestamp")
-                if ticker and isinstance(ticker.get("timestamp"), int)
+                ticker.get("timestamp_ms")
+                if ticker and isinstance(ticker.get("timestamp_ms"), int)
                 else None
             ),
             "candles": [
@@ -298,8 +386,8 @@ class PairAnalysisService:
                 }
                 for c in dataset.candles
             ],
-            "quality_issues": sorted(dataset.quality.issue_kinds),
-            "is_analysis_safe": dataset.is_analysis_safe,
+            "quality_issues": sorted(quality_issues),
+            "is_analysis_safe": not quality_issues,
             "range": {
                 "high": rh,
                 "low": rl,
@@ -319,17 +407,13 @@ class PairAnalysisService:
             "signal": {
                 "direction": signal.direction.value,
                 "reason": signal.reason.value,
-                "price": (
-                    signal.price if signal.price != 0.0 or last_price is not None else None
-                ),
+                "price": (signal.price if signal.price != 0.0 or last_price is not None else None),
                 "position_in_range": signal.position_in_range,
                 "confidence": signal.confidence,
                 "confirmation": signal.confirmation,
                 "confirmation_policy": (
                     signal.metadata.get("confirmation_policy")
-                    if isinstance(
-                        signal.metadata.get("confirmation_policy"), str
-                    )
+                    if isinstance(signal.metadata.get("confirmation_policy"), str)
                     else None
                 ),
                 "range_high": signal.range_high,

@@ -46,6 +46,36 @@ def create_user(client: TestClient, owner_token: str, email: str) -> str:
 
 
 class TestAuthEndpoints:
+    def test_signup_after_owner_exists_has_no_admin_access(self, client: TestClient) -> None:
+        root = bootstrap_owner(client)
+        response = client.post("/auth/register", json={
+            "email": "new@example.com", "password": "new-user-pass", "role": "owner",
+        })
+        assert response.status_code == 201, response.text
+        assert response.json()["user"]["role"] == "user"
+        headers = auth_headers(response.json()["access_token"])
+        assert client.get("/auth/me", headers=headers).json()["email"] == "new@example.com"
+        assert client.get("/admin/users", headers=headers).status_code == 403
+        assert client.post("/admin/users", headers=headers, json={
+            "email": "other@example.com", "password": "other-pass", "role": "owner",
+        }).status_code == 403
+        watchlist = client.post("/watchlists", headers=headers, json={"name": "My markets"})
+        assert watchlist.status_code == 201
+        assert client.post("/auth/login", json={
+            "email": "new@example.com", "password": "new-user-pass",
+        }).status_code == 200
+        assert client.get("/admin/users", headers=auth_headers(root)).status_code == 200
+
+    def test_signup_duplicate_does_not_replace_existing_account(self, client: TestClient) -> None:
+        bootstrap_owner(client)
+        duplicate = client.post("/auth/register", json={
+            "email": "ROOT@example.com", "password": "replacement-pass",
+        })
+        assert duplicate.status_code == 409
+        assert client.post("/auth/login", json={
+            "email": "root@example.com", "password": "root-pass-1",
+        }).status_code == 200
+
     def test_register_first_user_becomes_owner(self, client: TestClient) -> None:
         body = bootstrap_owner(client)
         me = client.get("/auth/me", headers=auth_headers(body))

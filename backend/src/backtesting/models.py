@@ -17,7 +17,7 @@ from market_data.models import Timeframe
 from persistence.models import StoredTrade
 from persistence.statistics import TradeStatistics
 
-ENGINE_VERSION = "backtest-1.0.0"
+ENGINE_VERSION = "backtest-2.0.0"
 
 
 def _canonical_json(payload: object) -> str:
@@ -85,6 +85,14 @@ class BacktestConfig:
             raise ValueError("BacktestConfig.regime_threshold must be within (0, 1]")
         if self.warmup_candles < 2:
             raise ValueError("BacktestConfig.warmup_candles must be >= 2")
+        runner = self.risk_config.get("runner_fraction", 0.0)
+        trail = self.risk_config.get("runner_trail_percent", 0.02)
+        if isinstance(runner, bool) or not isinstance(runner, (int, float)) or not 0 <= runner < 1:
+            raise ValueError("runner_fraction must be within [0, 1)")
+        if isinstance(trail, bool) or not isinstance(trail, (int, float)) or not 0 < trail < 1:
+            raise ValueError("runner_trail_percent must be within (0, 1)")
+        if self.signal_config.get("entry_mode", "close") not in ("close", "touch", "confirmed"):
+            raise ValueError("entry_mode must be close, touch or confirmed")
         if not self.strategy_id:
             raise ValueError("BacktestConfig.strategy_id must be non-empty")
 

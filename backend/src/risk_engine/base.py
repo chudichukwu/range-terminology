@@ -15,6 +15,7 @@ class StopMethod(Enum):
     """How the protective stop level is derived."""
 
     RANGE = "range"
+    RANGE_PERCENT = "range_percent"
     ATR = "atr"
     FIXED_PERCENT = "fixed_percent"
 

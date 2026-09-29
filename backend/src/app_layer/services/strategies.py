@@ -5,9 +5,15 @@ import time
 import uuid
 from collections.abc import Callable
 
+import pandas as pd
+
 from app_layer.errors import NotFoundError, ValidationError
 from app_layer.models import StrategyConfig, User, validate_strategy_payload
 from app_layer.ports import StrategyConfigRepository
+from backtesting.models import BacktestConfig
+from range_engine.factory import RangeEngineFactory
+from risk_engine.engine import RiskEngine
+from signal_engine.engine import RangeSignalEngine
 
 
 def _default_clock() -> int:
@@ -20,6 +26,43 @@ def _new_id() -> str:
 
 def _canonical(payload: dict[str, object]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def validate_engines(payload: dict[str, object]) -> None:
+    """Reject malformed configurations at save time, not during a live scan."""
+    try:
+        validate_strategy_payload(payload)
+        range_config = payload["range_config"]
+        signal_config = payload["signal_config"]
+        risk_config = payload["risk_config"]
+        if range_config.get("mode") == "balanced":
+            from range_engine.balanced import settings
+
+            settings(payload)
+            return
+        RangeEngineFactory.detect(
+            pd.DataFrame(
+                {
+                    key: pd.Series(dtype="int64" if key == "timestamp" else "float64")
+                    for key in ["timestamp", "open", "high", "low", "close", "volume"]
+                }
+            ),
+            range_config,
+        )
+        RangeSignalEngine(signal_config)
+        RiskEngine(risk_config)
+        BacktestConfig(
+            symbol="VALIDATION/USD",
+            timeframe="1h",
+            start_ms=1,
+            end_ms=2,
+            initial_capital=10000,
+            range_config=range_config,
+            signal_config=signal_config,
+            risk_config=risk_config,
+        )
+    except (ValueError, TypeError) as exc:
+        raise ValidationError(str(exc)) from exc
 
 
 class StrategyConfigService:
@@ -38,19 +81,18 @@ class StrategyConfigService:
 
     def _owned(self, actor: User, strategy_id: str) -> StrategyConfig | None:
         found = self._repo.get_strategy(strategy_id)
-        if found is None or (
-            found.owner_user_id != actor.id and actor.role.value != "owner"
-        ):
+        if found is None or (found.owner_user_id != actor.id and actor.role.value != "owner"):
             # Not owned => indistinguishable from nonexistent.
             return None
         return found
 
-    def create(self, actor: User, *, name: str, payload: dict[str, object],
-               active: bool = True) -> StrategyConfig:
+    def create(
+        self, actor: User, *, name: str, payload: dict[str, object], active: bool = True
+    ) -> StrategyConfig:
         clean = (name or "").strip()
         if not 1 <= len(clean) <= 80:
             raise ValidationError("strategy name must be 1-80 characters")
-        validate_strategy_payload(payload)
+        validate_engines(payload)
         now = self._clock_ms()
         return self._repo.create_strategy(
             StrategyConfig(
@@ -88,7 +130,7 @@ class StrategyConfigService:
         if not 1 <= len(new_name) <= 80:
             raise ValidationError("strategy name must be 1-80 characters")
         new_payload = dict(payload) if payload is not None else existing.payload()
-        validate_strategy_payload(new_payload)
+        validate_engines(new_payload)
         updated = StrategyConfig(
             id=existing.id,
             owner_user_id=existing.owner_user_id,

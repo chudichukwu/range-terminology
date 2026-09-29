@@ -1,4 +1,4 @@
-"""Authentication endpoints: bootstrap registration, login, logout, me."""
+"""Authentication endpoints: public registration, login, logout, me."""
 
 from fastapi import APIRouter, Request
 
@@ -31,8 +31,8 @@ def _bearer_token(request: Request) -> str:
 
 @router.post("/register", status_code=201)
 def register(payload: RegisterRequest, container: ContainerDep) -> dict[str, object]:
-    """Create the first account (becomes OWNER); later ones need an OWNER."""
-    container.users.create_user(payload.email, payload.password)
+    """Sign up as USER, or bootstrap OWNER when no accounts exist yet."""
+    container.users.register(payload.email, payload.password)
     user, token = container.users.authenticate(payload.email, payload.password)
     return {"access_token": token, "token_type": "bearer", "user": _user_dict(user)}
 

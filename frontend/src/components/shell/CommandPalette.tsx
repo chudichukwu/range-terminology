@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 type Entry = { label: string; href: string; hint: string };
 
 const ENTRIES: Entry[] = [
-  { label: "Dashboard", href: "/", hint: "Main workstation" },
+  { label: "Scanner", href: "/", hint: "Main workstation" },
   { label: "Watchlists", href: "/watchlists", hint: "Scan pairs" },
   { label: "Strategies", href: "/strategies", hint: "Configure engines" },
   { label: "Backtests", href: "/backtests", hint: "Research runs" },
@@ -27,7 +27,10 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   useEffect(() => {
     if (!open) setQuery("");
-  }, [open]);
+    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") onOpenChange(false); };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [open, onOpenChange]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -54,7 +57,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Jump to pair, timeframe, strategy, run, trade…"
+            placeholder="Find a page…"
             className="flex-1 bg-transparent text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none"
             aria-label="Search"
           />
@@ -62,7 +65,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
         </div>
         <div className="max-h-[42vh] overflow-auto p-1.5">
           {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-[13px] text-[var(--color-text-tertiary)]">No results — foundation palette has routes only.</div>
+            <div className="px-3 py-6 text-center text-[13px] text-[var(--color-text-tertiary)]">No matching pages.</div>
           ) : (
             <ul role="listbox" aria-label="Commands">
               {filtered.map((entry) => (

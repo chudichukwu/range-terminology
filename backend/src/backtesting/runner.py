@@ -7,20 +7,25 @@ ANTI-LOOK-AHEAD DESIGN (non-negotiable contract of this module):
 2. At replay step ``i`` the strategy sees exactly ``frame.iloc[:i+1]`` —
    every engine input is a prefix slice of one prebuilt frame. Future rows
    physically cannot reach a detector, the signal engine or the risk engine.
-3. Decisions use only data through candle ``i``'s close; execution happens at
-   candle ``i+1``'s open under :mod:`backtesting.simulation` assumptions A1-A7.
+3. Decisions use only data through candle ``i``'s close. Close-mode fills at
+   the next open. Touch-mode tests those fixed boundaries against the next
+   candle; ambiguous two-edge bars and gap entries are skipped. Stop-first
+   resolution applies, and touch bars are never awarded an uncertain target.
 4. Range/oscillator/regime values are recomputed per step from the visible
    prefix; nothing is carried backward from later bars.
 5. A position occupies the replay until its exit bar; overlapping entries are
    impossible by construction (single-position simulation).
-6. If data ends before a position exits, that half-life is discarded — never
-   counted as a win or loss.
+6. Legacy full-exit mode discards unfinished positions. Runner mode marks
+   remaining quantity at the final close and records an end_of_data exit.
+7. Runner trailing stops use prior closes only; ambiguous same-bar target
+   and new runner-stop touches resolve conservatively at the runner stop.
 
 Performance: one DataFrame is built up front; each step passes a prefix
 slice. Detectors validate/copy internally as they always do.
 """
 
 import hashlib
+import json
 import math
 from collections.abc import Mapping
 
@@ -49,6 +54,7 @@ from risk_engine.base import AccountRiskState, RiskDecision, RiskDecisionStatus
 from risk_engine.engine import RiskEngine
 from signal_engine.base import SignalDirection
 from signal_engine.engine import RangeSignalEngine
+from signal_engine.structure import touch_signal
 
 _ZONE_LOWER = "lower_edge"
 _ZONE_MIDDLE = "middle"
@@ -70,6 +76,7 @@ class BacktestRunner:
             if candle.is_closed and config.start_ms <= candle.timestamp < config.end_ms
         )
         full_frame = self._build_frame(window)
+        run_id = self._run_id(config, window)
 
         equity = config.initial_capital
         peak = equity
@@ -123,12 +130,25 @@ class BacktestRunner:
                 continue
             zone_counts[zone] += 1
             observations.append(
-                ZoneObservation(
-                    decision_ts, regime, range_state.status.value, zone, True
-                )
+                ZoneObservation(decision_ts, regime, range_state.status.value, zone, True)
             )
 
-            signal = signal_engine.evaluate(candle.close, range_state)
+            touch_mode = config.signal_config.get("entry_mode") == "touch"
+            next_bar = window[index + 1]
+            signal = (
+                touch_signal(
+                    {
+                        "open": next_bar.open,
+                        "high": next_bar.high,
+                        "low": next_bar.low,
+                        "close": next_bar.close,
+                    },
+                    range_state,
+                    config.signal_config,
+                )
+                if touch_mode
+                else signal_engine.evaluate(candle.close, range_state)
+            )
             if signal.direction is SignalDirection.NONE:
                 index += 1
                 continue
@@ -145,7 +165,7 @@ class BacktestRunner:
                 decision = risk_engine.evaluate(
                     signal,
                     account,
-                    price=candle.close,
+                    price=signal.price,
                     atr=self._atr_if_required(config, history),
                     symbol=config.symbol,
                     config=config.effective_risk_config,
@@ -185,6 +205,8 @@ class BacktestRunner:
                 regime=regime,
                 zone=zone,
                 trade_seq=trade_seq,
+                touch_entry=signal.price if touch_mode else None,
+                run_id=run_id,
             )
             trade_seq += 1
             if outcome is None:
@@ -214,9 +236,7 @@ class BacktestRunner:
             symbol=config.symbol,
             timeframe=config.resolved_timeframe.value,
             period_start_ms=window[0].timestamp if window else config.start_ms,
-            period_end_ms=(
-                window[-1].timestamp + duration_ms if window else config.end_ms
-            ),
+            period_end_ms=(window[-1].timestamp + duration_ms if window else config.end_ms),
             candles_replayed=len(window),
             decisions_evaluated=decisions,
             initial_capital=config.initial_capital,
@@ -322,33 +342,146 @@ class BacktestRunner:
         regime: MarketRegime,
         zone: str | None,
         trade_seq: int,
+        touch_entry: float | None = None,
+        run_id: str = "",
+        staged_exit: dict | None = None,
     ) -> tuple[StoredTrade, int, float] | None:
         """Walk forward from the entry bar until stop/target/end-of-data."""
         entry_bar = window[entry_index]
-        entry_open = entry_bar.open
-        entry_fill = simulate_entry_fill(
-            direction, entry_open, slippage_rate=config.slippage_rate
-        )
+        entry_open = touch_entry if touch_entry is not None else entry_bar.open
+        entry_fill = simulate_entry_fill(direction, entry_open, slippage_rate=config.slippage_rate)
         fees_entry = entry_fill * quantity * config.fee_rate
         slip_entry_cost = abs(entry_fill - entry_open) * quantity
-        opened_at = entry_bar.close_time_ms
+        opened_at = entry_bar.timestamp
+        runner = float(config.risk_config.get("runner_fraction", 0.0))
+        trail_percent = float(config.risk_config.get("runner_trail_percent", 0.02))
+        if staged_exit:
+            runner = 1 - staged_exit["tp1_fraction"]
+        outside_closes = 0
+        remaining = quantity
+        exits: list[dict[str, object]] = []
+        active_stop = stop_price
+        took_partial = False
 
         for exit_index in range(entry_index, len(window)):
             bar = window[exit_index]
             outcome, exit_fill = resolve_protective_exit(
                 direction,
-                stop_price,
-                target_price,
-                candle_open=bar.open,
+                active_stop,
+                (
+                    staged_exit["tp2"]
+                    if staged_exit
+                    else float("inf")
+                    if direction is PositionDirection.LONG
+                    else 0.0
+                )
+                if took_partial
+                else target_price,
+                candle_open=entry_fill
+                if touch_entry is not None and exit_index == entry_index
+                else bar.open,
                 candle_high=bar.high,
                 candle_low=bar.low,
                 slippage_rate=config.slippage_rate,
             )
+            # The entry candle's far extreme may have occurred before the touch.
+            # Count its stop, but never award a same-candle target for touch entries.
+            if touch_entry is not None and exit_index == entry_index and outcome == "target":
+                outcome = None
+            if outcome == "target" and runner > 0 and not took_partial:
+                partial_qty = quantity * (1 - runner)
+                exits.append(
+                    {
+                        "price": exit_fill,
+                        "quantity": partial_qty,
+                        "timestamp": bar.close_time_ms,
+                        "reason": "partial_target",
+                    }
+                )
+                remaining -= partial_qty
+                took_partial = True
+                active_stop = (
+                    entry_fill
+                    if staged_exit
+                    else (
+                        max(entry_fill, target_price * (1 - trail_percent))
+                        if direction is PositionDirection.LONG
+                        else min(entry_fill, target_price * (1 + trail_percent))
+                    )
+                )
+                # Conservative ordering when target and the new runner stop share a bar.
+                outcome, exit_fill = resolve_protective_exit(
+                    direction,
+                    active_stop,
+                    staged_exit["tp2"]
+                    if staged_exit
+                    else float("inf")
+                    if direction is PositionDirection.LONG
+                    else 0.0,
+                    candle_open=target_price,
+                    candle_high=bar.high,
+                    candle_low=bar.low,
+                    slippage_rate=config.slippage_rate,
+                )
+            if staged_exit:
+                outside = (
+                    bar.close < range_low - staged_exit["buffer"]
+                    if direction is PositionDirection.LONG
+                    else bar.close > range_high + staged_exit["buffer"]
+                )
+                outside_closes = outside_closes + 1 if outside else 0
+                if outcome is None and outside_closes >= staged_exit["hold_closes"]:
+                    outcome = "range_invalidated"
+                    exit_fill = bar.close * (
+                        1 - config.slippage_rate
+                        if direction is PositionDirection.LONG
+                        else 1 + config.slippage_rate
+                    )
+            if outcome is None and exit_index == len(window) - 1 and runner > 0:
+                # Realize the residual position at the final close; do not discard its partial P&L.
+                outcome = "end_of_data"
+                exit_fill = bar.close * (
+                    1 - config.slippage_rate
+                    if direction is PositionDirection.LONG
+                    else 1 + config.slippage_rate
+                )
             if outcome is None:
+                if took_partial and not staged_exit:
+                    # Tighten only for the NEXT candle, avoiding intrabar hindsight.
+                    active_stop = (
+                        max(active_stop, bar.close * (1 - trail_percent))
+                        if direction is PositionDirection.LONG
+                        else min(active_stop, bar.close * (1 + trail_percent))
+                    )
                 continue
+            exits.append(
+                {
+                    "price": exit_fill,
+                    "quantity": remaining,
+                    "timestamp": bar.close_time_ms,
+                    "reason": ("breakeven_stop" if staged_exit else "runner_stop")
+                    if took_partial and outcome == "stop"
+                    else "tp2"
+                    if staged_exit and took_partial and outcome == "target"
+                    else outcome,
+                }
+            )
+            exit_fill = sum(float(e["price"]) * float(e["quantity"]) for e in exits) / quantity
             fees_exit = exit_fill * quantity * config.fee_rate
             reference_level = stop_price if outcome == "stop" else target_price
             slip_exit_cost = abs(exit_fill - reference_level) * quantity
+            if staged_exit:
+                slip_exit_cost = sum(
+                    float(e["price"])
+                    * float(e["quantity"])
+                    * config.slippage_rate
+                    / (
+                        1 - config.slippage_rate
+                        if direction is PositionDirection.LONG
+                        else 1 + config.slippage_rate
+                    )
+                    for e in exits
+                )
             sign = 1.0 if direction is PositionDirection.LONG else -1.0
             gross_pnl = sign * (exit_fill - entry_fill) * quantity
             net_pnl = gross_pnl - fees_entry - fees_exit
@@ -381,6 +514,11 @@ class BacktestRunner:
                 strategy_config_version=f"{config.strategy_id}@{config.config_version}",
                 extra={
                     "simulated": True,
+                    "exit_fills": exits,
+                    "run_id": run_id,
+                    "entry_mode": "touch" if touch_entry is not None else "close",
+                    "runner_fraction": 0.0 if staged_exit else runner,
+                    "staged_exit": staged_exit,
                     "regime": regime.value,
                     "zone": zone,
                     "exit_reason": outcome,
@@ -389,7 +527,7 @@ class BacktestRunner:
                     "slippage_cost": round(slip_entry_cost + slip_exit_cost, 12),
                 },
             )
-            trade_id = f"bt-{config.config_hash[:12]}-{trade_seq:06d}-{outcome}"
+            trade_id = f"bt-{run_id[:16] or config.config_hash[:12]}-{trade_seq:06d}-{outcome}"
             trade = StoredTrade(
                 trade_id=trade_id,
                 symbol=config.symbol,
@@ -426,15 +564,19 @@ class BacktestRunner:
                 config.resolved_timeframe.value,
                 str(first_ts),
                 str(len(window)),
+                hashlib.sha256(
+                    json.dumps(
+                        [(c.timestamp, c.open, c.high, c.low, c.close, c.volume) for c in window],
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
                 ENGINE_VERSION,
             ]
         )
         return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:32]
 
 
-def detect_range_state(
-    history: pd.DataFrame, range_config: Mapping[str, object]
-) -> RangeState:
+def detect_range_state(history: pd.DataFrame, range_config: Mapping[str, object]) -> RangeState:
     """Thin indirection so the replay depends only on the public factory."""
     from range_engine.factory import RangeEngineFactory
 

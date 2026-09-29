@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from api.dependencies import ContainerDep, CurrentUser
 from api.schemas.analysis import AnalysisOut
 from app_layer.services.analysis import PairAnalysisService
+from app_layer.services.providers import public_source
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -20,8 +21,15 @@ def pair_analysis(
     symbol: str = Query(..., description="BASE/QUOTE e.g. BTC/USDT"),
     timeframe: str = Query(default="1h"),
     strategy_id: str | None = Query(default=None),
-    limit: int = Query(default=200, ge=1, le=500),
+    limit: int = Query(default=200, ge=1, le=1000),
+    venue: str | None = Query(default=None),
 ) -> dict[str, object]:
+    if venue:
+        source = public_source(venue)
+        with source.lock:
+            result = PairAnalysisService(source.facade, container.strategies).analyze(
+                user, symbol, timeframe, strategy_id=strategy_id, limit=limit)
+        return {**result, "venue": venue}
     svc = PairAnalysisService(container.markets, container.strategies)
     return svc.analyze(user, symbol, timeframe, strategy_id=strategy_id, limit=limit)
 
@@ -33,9 +41,8 @@ def pair_analysis_dashed(
     user: CurrentUser,
     timeframe: str = Query(default="1h"),
     strategy_id: str | None = Query(default=None),
-    limit: int = Query(default=200, ge=1, le=500),
+    limit: int = Query(default=200, ge=1, le=1000),
+    venue: str | None = Query(default=None),
 ) -> dict[str, object]:
-    svc = PairAnalysisService(container.markets, container.strategies)
-    return svc.analyze(
-        user, symbol_dashed.replace("-", "/"), timeframe, strategy_id=strategy_id, limit=limit
-    )
+    return pair_analysis(container, user, symbol_dashed.replace("-", "/"), timeframe,
+                         strategy_id, limit, venue)

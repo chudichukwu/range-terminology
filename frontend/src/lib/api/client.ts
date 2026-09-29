@@ -11,7 +11,7 @@
 
 import type { ApiErrorEnvelope } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 export const REQUEST_ID_HEADER = "X-Request-Id";
 
 export class ApiError extends Error {
@@ -74,9 +74,9 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     } catch {
       // non-JSON error
     }
-    const code = envelope?.error.code ?? (res.status >= 500 ? "internal_error" : "request_failed");
-    const message = envelope?.error.message ?? res.statusText ?? "Request failed";
-    const rid = envelope?.error.request_id ?? responseRequestId;
+    const code = envelope?.error?.code ?? (res.status >= 500 ? "internal_error" : "request_failed");
+    const message = envelope?.error?.message ?? res.statusText ?? "Request failed";
+    const rid = envelope?.error?.request_id ?? responseRequestId;
     throw new ApiError(message, { code, requestId: rid, status: res.status });
   }
 
@@ -96,9 +96,16 @@ export const api = {
   del: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
   health: () => apiFetch<{ status: string }>("/health"),
   me: () => apiFetch<import("./types").UserOut>("/auth/me"),
+  login: (body: { email: string; password: string }) => apiFetch<{ access_token: string; token_type: string; user: import("./types").UserOut }>("/auth/login", { method: "POST", body }),
+  register: (body: { email: string; password: string }) => apiFetch<{ access_token: string; token_type: string; user: import("./types").UserOut }>("/auth/register", { method: "POST", body }),
+  logout: () => {
+    const tok = typeof window !== "undefined" ? localStorage.getItem("rt.accessToken") : null;
+    return apiFetch<void>("/auth/logout", { method: "POST", body: { token: tok } });
+  },
   // Pair analysis — backend-provided market+range+regime+signal+risk
-  pairAnalysis: (params: { symbol: string; timeframe: string; strategy_id?: string; limit?: number }, signal?: AbortSignal) => {
+  pairAnalysis: (params: { symbol: string; timeframe: string; strategy_id?: string; limit?: number; venue?: string }, signal?: AbortSignal) => {
     const sp = new URLSearchParams({ symbol: params.symbol, timeframe: params.timeframe });
+    if (params.venue) sp.set("venue", params.venue);
     if (params.strategy_id) sp.set("strategy_id", params.strategy_id);
     if (params.limit) sp.set("limit", String(params.limit));
     return apiFetch<import("./types").PairAnalysis>(`/analysis/pair?${sp.toString()}`, { signal });
@@ -121,7 +128,7 @@ export const api = {
   deleteStrategy: (id: string) => apiFetch<void>(`/strategies/${id}`, { method: "DELETE" }),
   listBacktests: (signal?: AbortSignal) => apiFetch<import("./types").BacktestRunSummary[]>("/backtests", { signal }),
   getBacktest: (runId: string, signal?: AbortSignal) => apiFetch<import("./types").BacktestDetail>(`/backtests/${runId}`, { signal }),
-  runBacktest: (body: { strategy_id: string; start_ms: number; end_ms: number; initial_capital: number; fee_rate?: number; slippage_rate?: number }) =>
+  runBacktest: (body: { symbol?: string; timeframe?: string; venue?: string; strategy_id: string; start_ms: number; end_ms: number; initial_capital: number; fee_rate?: number; slippage_rate?: number }) =>
     apiFetch<import("./types").BacktestDetail>("/backtests", { method: "POST", body }),
   listTrades: (params?: { symbol?: string; result?: string; limit?: number }, signal?: AbortSignal) => {
     const sp = new URLSearchParams();
@@ -145,4 +152,8 @@ export const api = {
     apiFetch<import("./types").ExchangeConnection>("/exchanges/connections", { method: "POST", body }),
   deleteExchangeConnection: (id: string) => apiFetch<void>(`/exchanges/connections/${id}`, { method: "DELETE" }),
   getSystemHealth: (signal?: AbortSignal) => apiFetch<import("./types").SystemHealth>("/admin/system-health", { signal }),
+  listAdminUsers: (signal?: AbortSignal) => apiFetch<import("./types").AdminUser[]>("/admin/users", { signal }),
+  getAuditLog: (limit = 100, signal?: AbortSignal) => apiFetch<import("./types").AuditEvent[]>(`/admin/audit-log?limit=${limit}`, { signal }),
+  getTradingActivity: (limit = 50, signal?: AbortSignal) => apiFetch<import("./types").TradingActivity>(`/admin/trading-activity?limit=${limit}`, { signal }),
+  listDatasets: (signal?: AbortSignal) => apiFetch<import("./types").Dataset[]>("/datasets", { signal }),
 };

@@ -1,176 +1,33 @@
 "use client";
-
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PairAnalysisHeader } from "@/components/dashboard/PairAnalysisHeader";
-import { TradingChart } from "@/components/dashboard/TradingChart";
-import { SignalPanel } from "@/components/dashboard/SignalPanel";
-import { RsiPanel } from "@/components/dashboard/RsiPanel";
-import { RiskSummary } from "@/components/dashboard/RiskSummary";
-import { TimeframeStrip } from "@/components/dashboard/TimeframeStrip";
-import { ErrorState, LoadingState, EmptyState, PaperReadOnlyBanner } from "@/components/state/StatePrimitives";
+import { ManualRange } from "./ManualRange";
+import { TradingChart } from "./TradingChart";
 import { usePairAnalysis } from "@/hooks/usePairAnalysis";
-import type { Timeframe } from "@/lib/api/types";
+import { Scanner } from "@/components/workspace/Scanner";
+import { Field, human, money, SOURCES, WorkspaceHeader } from "@/components/workspace/shared";
 import { api } from "@/lib/api/client";
-
-const DEFAULT_SYMBOL = "BTC/USDT";
-const DEFAULT_TF: Timeframe = "1h";
-
+import type { PairAnalysis, Strategy } from "@/lib/api/types";
 export function DashboardClient() {
-  const search = useSearchParams();
-  const router = useRouter();
-  const initialSymbol = search.get("symbol") ?? DEFAULT_SYMBOL;
-  const initialTf = (search.get("timeframe") as Timeframe) ?? DEFAULT_TF;
-
-  const [symbol, setSymbol] = useState(initialSymbol);
-  const [timeframe, setTimeframe] = useState<Timeframe>(initialTf);
-  const [strategyId, setStrategyId] = useState<string | undefined>(undefined);
-  const [availableTfs, setAvailableTfs] = useState<string[] | undefined>(undefined);
-  const [strategies, setStrategies] = useState<{ id: string; name: string }[]>([]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(search.toString());
-    const curS = params.get("symbol");
-    const curTf = params.get("timeframe");
-    if (curS !== symbol || curTf !== timeframe) {
-      params.set("symbol", symbol);
-      params.set("timeframe", timeframe);
-      router.replace(`?${params.toString()}`);
-    }
-  }, [symbol, timeframe, router, search]);
-
-  useEffect(() => {
-    api
-      .listTimeframes()
-      .then(({ data }) => setAvailableTfs(data.timeframes))
-      .catch(() => setAvailableTfs(undefined));
-    api
-      .listStrategies()
-      .then(({ data }) => setStrategies(data.map((s) => ({ id: s.id, name: s.name }))))
-      .catch(() => setStrategies([]));
-  }, []);
-
-  const analysisState = usePairAnalysis(symbol, timeframe, strategyId);
-
-  return (
-    <div className="flex min-h-0 flex-col">
-      <PairAnalysisHeader
-        analysis={analysisState.status === "success" ? analysisState.data : null}
-        symbol={symbol}
-        timeframe={timeframe}
-        onSymbolChange={setSymbol}
-        onTimeframeChange={setTimeframe}
-        availableTimeframes={availableTfs}
-      />
-
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-4 py-2">
-        <label htmlFor="strategy-pick" className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-          Strategy context
-        </label>
-        <select
-          id="strategy-pick"
-          value={strategyId ?? ""}
-          onChange={(e) => setStrategyId(e.target.value || undefined)}
-          className="min-w-[180px] rounded-sm border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] px-2 py-1 text-[12px] text-[var(--color-text-secondary)] focus:border-[var(--color-purple-accent)] focus:outline-none"
-        >
-          <option value="">Default (structural)</option>
-          {strategies.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <span className="mono text-[11px] text-[var(--color-text-tertiary)]">range/signal/risk configs from backend payload</span>
-        <span className="ml-auto hidden md:inline-flex">
-          <PaperReadOnlyBanner compact />
-        </span>
-      </div>
-
-      <div className="mx-auto w-full max-w-[1920px] flex-1 p-4">
-        {analysisState.status === "idle" && (
-          <EmptyState
-            title="No pair selected"
-            description="Pick a symbol from your watchlist or use the pair selector above to open Pair Analysis. Analysis is backend-provided; nothing is computed in React."
-          />
-        )}
-        {analysisState.status === "loading" && (
-          <div className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-              <div className="h-[420px] animate-pulse rounded-md bg-[var(--color-bg-surface-1)] md:h-[52vh]" />
-              <LoadingState label="Loading signal and confirmation" />
-            </div>
-            <LoadingState label="Loading risk and oscillator" />
-          </div>
-        )}
-        {analysisState.status === "error" && (
-          <ErrorState
-            title={
-              analysisState.code === "unauthenticated"
-                ? "Sign in required"
-                : analysisState.code === "provider_error"
-                  ? "Market data unavailable"
-                  : analysisState.code === "validation_error"
-                    ? "Invalid request"
-                    : "Could not load analysis"
-            }
-            message={
-              analysisState.code === "unauthenticated"
-                ? "This workstation requires authentication. Sign in to view analysis."
-                : `${analysisState.message} — backend returned ${analysisState.code}.`
-            }
-            requestId={analysisState.requestId}
-            onRetry={() => window.location.reload()}
-          />
-        )}
-        {analysisState.status === "success" && (
-          <div className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-              <div className="min-w-0 space-y-4">
-                <TradingChart analysis={analysisState.data} />
-                <RsiPanel analysis={analysisState.data} />
-                <RiskSummary analysis={analysisState.data} />
-              </div>
-              <div className="space-y-4">
-                <SignalPanel analysis={analysisState.data} />
-                <PaperReadOnlyBanner />
-                <div className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-3">
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Backend-provided facts</div>
-                  <ul className="mono mt-2 space-y-1 text-[11px] text-[var(--color-text-secondary)]">
-                    <li>
-                      Range: <span className="text-[var(--color-text-primary)]">{analysisState.data.range.status}</span> · {analysisState.data.range.is_tradable ? "tradable" : "not tradable"}
-                    </li>
-                    <li>
-                      Regime: <span className="text-[var(--color-text-primary)]">{analysisState.data.regime.value}</span> · ER {analysisState.data.regime.efficiency_ratio?.toFixed(2) ?? "—"}
-                    </li>
-                    <li>
-                      Signal: <span className="text-[var(--color-text-primary)]">{analysisState.data.signal.direction}</span> · {analysisState.data.signal.reason}
-                    </li>
-                    <li>
-                      Quality: {analysisState.data.quality_issues.length ? analysisState.data.quality_issues.join(", ") : "clean"} · {analysisState.data.is_analysis_safe ? "analysis-safe" : "not analysis-safe"}
-                    </li>
-                    <li>
-                      Strategy: {analysisState.data.strategy_name ?? "default"} · {analysisState.data.strategy_id?.slice(0, 8) ?? "—"}
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <TimeframeStrip symbol={symbol} activeTf={timeframe} strategyId={strategyId} onSelect={setTimeframe} />
-            <div className="rounded-md border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)]/40 px-3 py-2 text-[11px] text-[var(--color-text-tertiary)]">
-              Watchlist → Dashboard flow: open a watchlist, select a pair, and append <span className="mono text-[var(--color-text-secondary)]">?symbol=BTC/USDT&timeframe=1h</span> to deep-link into this Pair Analysis. No watchlist business logic is duplicated here.
-            </div>
-            {(analysisState.data.range.status === "insufficient_data" || analysisState.data.regime.value === "insufficient_data") && (
-              <div className="rounded-md border border-[rgba(245,158,11,0.18)] bg-[var(--color-danger-bg)] p-3 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-                Insufficient data — backend reports <span className="font-medium text-[var(--color-text-primary)]">{analysisState.data.range.status}</span> /{" "}
-                <span className="font-medium text-[var(--color-text-primary)]">{analysisState.data.regime.value}</span>. Add more history, reduce lookback, or check ingestion. No bounds are fabricated.
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-4 py-2 text-[11px] text-[var(--color-text-tertiary)]">
-        Hierarchy: <span className="text-[var(--color-text-secondary)]">Market → Range/Regime → Signal/Confirmation → Risk → Execution (paper)</span> · Chart is dominant; supporting panels recede.
-      </div>
-    </div>
-  );
+ const query = useSearchParams(), router = useRouter();
+ const symbol = query.get("symbol"), tf = query.get("timeframe") ?? "1h", venue = query.get("venue") ?? "hyperliquid", strategy = query.get("strategy_id") ?? query.get("strategy") ?? "";
+ const [strategies, setStrategies] = useState<Strategy[]>([]);
+ useEffect(() => { if (symbol) api.listStrategies().then(({ data }) => setStrategies(data)).catch(() => {}); }, [symbol]);
+ const history = [200, 500, 1000].includes(Number(query.get("history"))) ? Number(query.get("history")) : 200;
+ const state = usePairAnalysis(symbol, tf, strategy || undefined, history, venue);
+ const change = (key: string, value: string) => { const p = new URLSearchParams(query.toString()); p.set(key, value); if (["symbol","venue","timeframe"].includes(key)) {p.delete("range_low");p.delete("range_high");} if (key === "strategy_id") p.delete("strategy"); router.replace(`/?${p}`); };
+ if (!symbol) return <Scanner />;
+ const low = Number(query.get("range_low")), high = Number(query.get("range_high"));
+ const manual = Number.isFinite(low) && Number.isFinite(high) && low > 0 && high > low;
+ const setRange = (lo?:number, hi?:number) => { const p=new URLSearchParams(query.toString()); p.delete("range_low");p.delete("range_high");if(lo !== undefined && hi !== undefined){p.set("range_low",String(lo));p.set("range_high",String(hi));}router.replace(`/?${p}`); };
+ const raw = state.status === "success" ? state.data : null;
+ const d: PairAnalysis | null = raw && manual ? {...raw, range:{...raw.range,low,high,width:high-low,is_tradable:false,status:"manual",metadata:{...raw.range.metadata,midpoint:(low+high)/2,reclaimed:false,structure_confirmed:true,reason:"Manual chart levels; automated entry plan hidden",low_touches:"—",high_touches:"—"}},risk:null,signal:{...raw.signal,direction:"none" as const,metadata:{...raw.signal.metadata}},swing_failures:raw.swing_failures.filter(e=>e.grade!=="A+")} : raw;
+ return <div className="workspace"><WorkspaceHeader eyebrow="MARKET DETAIL" title={symbol} description={`${venue} · ${tf} · range structure and confirmed setups`}><Link className="secondary-button" href="/">← Back to scanner</Link><Link className="primary-button" href="/backtests">Backtest playbook ↗</Link><Link className="secondary-button" href="/strategies/new">+ New strategy</Link></WorkspaceHeader>
+ <div className="panel-toolbar panel" style={{ marginBottom: 20 }}><div className="toolbar-controls"><Field label="Price source"><select value={venue} onChange={e => change("venue", e.target.value)}>{SOURCES.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></Field><Field label="Exact market symbol"><input key={symbol} defaultValue={symbol} onBlur={e => { if (e.target.value.trim() && e.target.value !== symbol) change("symbol", e.target.value.trim()); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /></Field><Field label="Strategy / playbook"><select value={strategy} onChange={e => change("strategy_id", e.target.value)}><option value="">Confirmed range · starting settings</option>{strategies.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></Field></div><div className="timeframe-groups" role="group" aria-label="Chart timeframe">{[{label:"Entry timing", frames:["1m","5m","15m","30m"]},{label:"Range",frames:["1h","4h"]},{label:"Context",frames:["1d","1w"]}].map(group => <div key={group.label}><span className="eyebrow">{group.label}</span><div className="chips">{group.frames.map(t => <button aria-pressed={tf === t} className={`chip ${tf === t ? "selected" : ""}`} onClick={() => change("timeframe", t)} key={t}>{t}</button>)}</div></div>)}<Field label="Chart history"><select value={history} onChange={e => change("history",e.target.value)}><option value={200}>200 candles</option><option value={500}>500 candles</option><option value={1000}>1,000 candles</option></select></Field></div></div>
+ {state.status === "error" && <div className="notice error" role="alert">{state.message}{state.statusCode === 401 && <Link href="/login">Sign in →</Link>}<p>Check that this exact market exists on the selected source. Retrying every 30 seconds.</p></div>}
+ {state.status === "loading" && <div className="empty-workspace"><h2>Reading market structure…</h2><p>Fetching candles and checking your playbook.</p></div>}
+ {d && <><ManualRange key={`${symbol}:${tf}:${venue}:${manual}`} low={manual?low:undefined} high={manual?high:undefined} onApply={setRange} onClear={()=>setRange()}/><div className="chart-layout"><div><TradingChart analysis={d} /><div className="workspace-footnote"><span>{d.candles.length} candles · {d.candles.length ? new Date(d.candles[0].timestamp).toLocaleDateString() : "—"} to {d.candles.length ? new Date(d.candles[d.candles.length-1].timestamp).toLocaleDateString() : "—"} · refreshes every 30s</span><span>{d.is_analysis_safe ? "Closed history checked" : "Data gaps — signals blocked"}</span></div></div><aside className="panel detail-panel"><p className="eyebrow">{manual ? "MANUAL LEVELS" : "ENTRY CHECK"} · {String(d.signal.metadata.range_timeframe ?? tf)}</p><h2>{manual ? "Your range" : d.signal.direction === "none" ? (d.range.is_tradable ? "Waiting for confirmation" : "No valid range entry") : `${human(d.signal.direction)} ${d.market_state ? "confirmed" : "edge touched"}`}</h2><span className="status-pill range">{d.range.metadata.reclaimed ? "Reclaimed range · " : ""}{human(d.regime.value)}</span><div className="level-row"><span>Last price</span><b>{money(d.ticker_last ?? d.signal.price)}</b></div><div className="level-row"><span>{tf} chart high</span><b>{money(d.range.high)}</b></div><div className="level-row"><span>{tf} chart low</span><b>{money(d.range.low)}</b></div><div className="level-row"><span>Touches · low / high</span><b>{String(d.range.metadata.low_touches ?? "—")} / {String(d.range.metadata.high_touches ?? "—")}</b></div><div className="level-row"><span>Entry level</span><b>{d.signal.direction !== "none" ? money(d.signal.price) : "—"}</b></div><div className="level-row"><span>Invalidation</span><b>{money(d.risk?.stop_price ?? (d.risk?.metadata?.stop_price as number | undefined))}</b></div><div className="level-row"><span>TP1 · midpoint</span><b>{money(d.risk?.target_price ?? (d.risk?.metadata?.target_price as number | undefined))}</b></div><div className="level-row"><span>TP2 · full exit</span><b>{money(d.risk?.metadata.tp2 as number | undefined)}</b></div><p className="muted" style={{ marginTop: 18 }}>{d.range.is_tradable ? "Entries require a closed-candle confirmation and aligned higher-timeframe context." : human(String(d.range.metadata.reason ?? "Waiting for a supported range"))}</p>{d.risk && !d.risk.approved && <p className="muted" style={{ marginTop: 12 }}>Risk filter: {human(d.risk.rejection_reason ?? "not approved")}</p>}</aside></div><section className="panel" style={{ marginTop: 24 }}><div className="panel-toolbar"><h2>Swing failure history</h2><span className="muted">Closed candles · loaded history</span></div>{d.swing_failures?.length ? [...d.swing_failures].reverse().map((s, i) => <div className="event-row" key={`${s.timestamp}:${i}`}><span className="event-icon">{s.direction === "bullish" ? "↗" : "↘"}</span><div><strong>{s.direction} {s.grade === "A+" ? "A+ range SFP" : "swing SFP"}</strong><p>Swept {money(s.level)} and reclaimed the level</p></div><time className="event-time muted">{new Date(s.timestamp).toLocaleString()}</time></div>) : <p className="muted" style={{ padding: "0 22px 22px" }}>No confirmed sweeps in the loaded history. A wick must cross a previously confirmed swing and close back through it. The forming candle is excluded.</p>}</section></>}
+  {d?.timeframe_context && <details className="panel settings-panel" style={{marginBottom:20}}><summary className="eyebrow" style={{cursor:"pointer", marginBottom:16}}>Higher-timeframe context · expand</summary><div className="stat-grid" style={{marginBottom:0}}>{Object.entries(d.timeframe_context).map(([tf,c])=><div className="stat-card" key={tf}><span>{tf} · {c.role}</span><h3 style={{margin:"10px 0"}}>{human(c.state)}{c.trend ? ` · ${c.trend}` : ""}</h3><small>ADX {c.adx?.toFixed(1) ?? "—"} · ATR {money(c.atr)}</small><p className="muted">{c.reason}</p></div>)}</div><p className="muted" style={{marginTop:14}}>State: {human(d.market_state ?? d.range.status)} · {d.signal.reason}. Range source: {String(d.range.metadata.range_timeframe ?? tf)}. A+ is a rule label, not a win probability.</p></details>}
+ </div>;
 }

@@ -137,8 +137,8 @@ def build_fake_ccxt():
             assert isinstance(result, dict)
             return result
 
-        def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int, since_ms=None):  # type: ignore[no-untyped-def]
-            result = self._scripted("fetch_ohlcv", symbol, timeframe, limit, since_ms)
+        def fetch_ohlcv(self, symbol: str, timeframe: str, since=None, limit=None):  # type: ignore[no-untyped-def]
+            result = self._scripted("fetch_ohlcv", symbol, timeframe, since, limit)
             assert isinstance(result, list)
             return result
 
@@ -746,7 +746,7 @@ class TestCcxtAdapterPublicData:
         adapter, fake = make_adapter()
         fake.scripts["fetch_ohlcv"] = OHLCV_ROWS
         adapter.get_ohlcv("BTC/USDT", "1h", limit=2, since_ms=1_700_000_000_000)
-        assert ("fetch_ohlcv", ("BTC/USDT", "1h", 2, 1_700_000_000_000)) in fake.calls
+        assert ("fetch_ohlcv", ("BTC/USDT", "1h", 1_700_000_000_000, 2)) in fake.calls
 
     def test_supported_timeframes_from_venue(self) -> None:
         adapter, _fake = make_adapter()

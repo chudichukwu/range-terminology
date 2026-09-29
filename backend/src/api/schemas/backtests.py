@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field
 
 
 class BacktestRunRequest(BaseModel):
+    symbol: str | None = Field(default=None, max_length=80)
+    timeframe: str | None = None
+    venue: str | None = None
     strategy_id: str = Field(min_length=4, max_length=64)
     start_ms: int = Field(gt=0)
     end_ms: int = Field(gt=0)

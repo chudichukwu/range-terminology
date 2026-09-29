@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from exchange.models import PositionDirection
-from market_data.models import DataQualityReport
+from market_data.models import DataQualityReport, QualityIssue
 
 
 class QualityStatus(Enum):
@@ -56,6 +56,7 @@ class DatasetSummary:
     quality_status: QualityStatus
     ingested_at_ms: int
     updated_at_ms: int
+    issues: tuple[QualityIssue, ...] = ()
 
 
 @dataclass(frozen=True)

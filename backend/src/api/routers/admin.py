@@ -155,3 +155,10 @@ def trading_activity(
         },
         "recent_backtests": recent_runs,
     }
+
+
+@router.get("/providers")
+def providers(owner: OwnerRequired) -> list[dict[str, object]]:
+    """Public candle request counters since this server started; OWNER only."""
+    from app_layer.services.providers import provider_status
+    return provider_status()

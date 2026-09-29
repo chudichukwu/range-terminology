@@ -43,6 +43,7 @@ def run_backtest(
         initial_capital=payload.initial_capital,
         fee_rate=payload.fee_rate,
         slippage_rate=payload.slippage_rate,
+        symbol=payload.symbol, timeframe=payload.timeframe, venue=payload.venue,
     )
     body = _summary(record)
     body["statistics"] = {
@@ -77,6 +78,8 @@ def run_backtest(
             "result": trade.result.value if trade.result else None,
             "opened_at_ms": trade.opened_at_ms,
             "closed_at_ms": trade.closed_at_ms,
+            "exit_fills": trade.context.extra.get("exit_fills", []) if trade.context else [],
+            "range_timeframe": trade.context.extra.get("range_timeframe") if trade.context else None,
         }
         for trade in result.trades
     ]
@@ -118,7 +121,9 @@ def get_backtest(
     body["config_hash"] = record.config_hash
     # Trades for this run — filter by config_hash (run identity)
     all_trades = container.store.list_trades()
-    run_trades = [t for t in all_trades if t.config_hash == record.config_hash]
+    run_trades = [t for t in all_trades if t.config_hash == record.config_hash
+                  and (not t.context or not t.context.extra.get("run_id")
+                       or t.context.extra.get("run_id") == record.run_id)]
     # Ensure chronological by closed time
     run_trades.sort(key=lambda t: (t.closed_at_ms or t.opened_at_ms, t.trade_id))
     body["trades"] = [
@@ -136,6 +141,8 @@ def get_backtest(
             "result": trade.result.value if trade.result else None,
             "opened_at_ms": trade.opened_at_ms,
             "closed_at_ms": trade.closed_at_ms,
+            "exit_fills": trade.context.extra.get("exit_fills", []) if trade.context else [],
+            "range_timeframe": trade.context.extra.get("range_timeframe") if trade.context else None,
         }
         for trade in run_trades
     ]

@@ -110,8 +110,14 @@ class MarketDataService:
     def get_ticker(self, symbol: str) -> Ticker:
         """Validated latest quote for ``symbol``."""
         _require_symbol(symbol)
+        key = ("ticker", symbol)
+        cached = self._cache_get(key)
+        if isinstance(cached, Ticker):
+            return cached
         try:
-            return self._port.get_ticker(symbol)
+            ticker = self._port.get_ticker(symbol)
+            self._cache_put(key, ticker)
+            return ticker
         except MarketDataError:
             raise
         except Exception as exc:  # noqa: BLE001 - normalized below by design
@@ -279,7 +285,9 @@ class MarketDataService:
             )
         if window_start_ms is not None and window_end_ms is not None:
             grid = timeframe.duration_ms
-            expected_first = math.ceil(window_start_ms / grid) * grid
+            # Weekly crypto candles open on Monday UTC, not the Unix epoch Thursday.
+            offset = 345_600_000 if timeframe is Timeframe.W1 else 0
+            expected_first = math.ceil((window_start_ms - offset) / grid) * grid + offset
             if not candles:
                 issues.append(
                     QualityIssue(

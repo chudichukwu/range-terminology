@@ -62,6 +62,7 @@ class Timeframe(Enum):
     H1 = "1h"
     H4 = "4h"
     D1 = "1d"
+    W1 = "1w"
 
     @property
     def duration_ms(self) -> int:
@@ -103,6 +104,7 @@ _DURATIONS: dict[Timeframe, int] = {
     Timeframe.H1: 3_600_000,
     Timeframe.H4: 14_400_000,
     Timeframe.D1: 86_400_000,
+    Timeframe.W1: 604_800_000,
 }
 
 

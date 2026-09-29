@@ -5,7 +5,7 @@ import { api, ApiError } from "@/lib/api/client";
 import type { PairAnalysis, Timeframe } from "@/lib/api/types";
 import { Badge } from "@/components/ui/Badge";
 
-const STRIP_TFS: Timeframe[] = ["1h", "4h", "1d", "15m"];
+const STRIP_TFS: Timeframe[] = ["15m", "1h", "4h", "1d", "1w"];
 
 type StripState =
   | { status: "loading" }

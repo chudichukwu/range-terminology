@@ -21,6 +21,12 @@ def _out(strategy) -> dict[str, object]:  # type: ignore[no-untyped-def]
     }
 
 
+@router.get("/preset/range-touch")
+def range_touch_preset(_user: CurrentUser) -> dict[str, object]:
+    from app_layer.services.playbook import range_touch_preset as preset
+    return preset()
+
+
 @router.get("")
 def list_strategies(
     container: ContainerDep, user: CurrentUser

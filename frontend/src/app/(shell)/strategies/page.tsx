@@ -18,6 +18,8 @@ function modeFromPayload(p: Record<string, unknown>): string {
 
 function signalSummary(p: Record<string, unknown>): string {
   const sc = p.signal_config as Record<string, unknown> | undefined;
+  if (sc?.entry_mode === "confirmed") return "Closed-candle confirmation · MTF";
+  if (sc?.entry_mode === "touch") return "Touch at range edge";
   const lz = sc?.lower_edge_zone ?? 0.25;
   const uz = sc?.upper_edge_zone ?? 0.25;
   const pol = String(sc?.confirmation_policy ?? "optional");
@@ -78,12 +80,12 @@ export default function StrategiesPage() {
   return (
     <>
       <PageHeader
-        title="Strategies"
-        description="Reproducible research configurations — RANGE + SIGNAL/CONFIRMATION + RISK. Backend validates; frontend configures."
+        title="Your playbooks"
+        description="Set the range structure, entry rules and exits you want to scan and test."
         breadcrumbs={[{ label: "Strategies" }]}
         actions={
           <Button variant="primary" onClick={() => router.push("/strategies/new")}>
-            New strategy
+            New playbook
           </Button>
         }
       />
@@ -93,7 +95,7 @@ export default function StrategiesPage() {
         {!strategies ? (
           <LoadingState label="Loading strategies" />
         ) : strategies.length === 0 ? (
-          <EmptyState title="No strategies yet" description="Create your first strategy to define range detection, signal/confirmation and risk for paper/research workflows. Strategies are configuration, not live trading." actionLabel="New strategy" onAction={() => router.push("/strategies/new")} />
+          <EmptyState title="Create your first playbook" description="Start with your range-touch rules, then tune repeated touches, invalidation and the breakout runner." actionLabel="New playbook" onAction={() => router.push("/strategies/new")} />
         ) : (
           <div className="overflow-hidden rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)]">
             <div className="hidden md:block">

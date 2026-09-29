@@ -11,10 +11,13 @@ trading arrives it must pass Authentication -> Authorization -> ExecutionMode
 -> RiskEngine -> ExecutionEngine, never HTTP -> Exchange.
 """
 
+import asyncio
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -29,6 +32,7 @@ from api.middleware import RequestIdMiddleware, request_id_of
 from api.routers import (
     admin as admin_router_module,
 )
+from api.routers import alerts as alerts_router
 from api.routers import (
     analysis as analysis_router,
 )
@@ -37,6 +41,9 @@ from api.routers import (
 )
 from api.routers import (
     backtests as backtests_router,
+)
+from api.routers import (
+    datasets as datasets_router,
 )
 from api.routers import (
     exchanges as exchanges_router,
@@ -53,6 +60,7 @@ from api.routers import (
 from api.routers import (
     watchlists as watchlists_router,
 )
+from app_layer.services.alerts import AlertService
 from exchange.credentials import CredentialStore
 from market_data.service import MarketDataService
 
@@ -67,10 +75,22 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        yield
-        container: Container | None = getattr(
-            application.state, "container", None
-        )
+        stop = threading.Event()
+
+        def monitor():
+            while not stop.is_set():
+                application.state.alerts.tick(application.state.container)
+                stop.wait(30)
+
+        worker = threading.Thread(target=monitor, daemon=True, name="range-alerts")
+        worker.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            await asyncio.to_thread(worker.join)
+            application.state.alerts.close()
+        container: Container | None = getattr(application.state, "container", None)
         if container is not None:
             container.store.close()
 
@@ -78,6 +98,15 @@ def create_app(
         title="Range Trading Terminal API",
         version="0.1.0",
         lifespan=lifespan,
+    )
+
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        expose_headers=["X-Request-Id"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     application.add_middleware(RequestIdMiddleware)
 
@@ -87,6 +116,7 @@ def create_app(
         credential_store=credential_store,
     )
     application.state.container = container
+    application.state.alerts = AlertService(db_path)
 
     from exchange.errors import ExchangeError
     from market_data.errors import MarketDataError
@@ -99,9 +129,7 @@ def create_app(
         )
         return JSONResponse(
             status_code=502,
-            content=error_envelope(
-                "provider_error", message, request_id_of(request)
-            ),
+            content=error_envelope("provider_error", message, request_id_of(request)),
         )
 
     application.add_exception_handler(ExchangeError, provider_error_handler)
@@ -114,6 +142,7 @@ def create_app(
 
     application.add_exception_handler(AppError, app_error_handler)
 
+    application.include_router(alerts_router.router)
     application.include_router(auth_router.router)
     application.include_router(watchlists_router.router)
     application.include_router(strategies_router.router)
@@ -123,6 +152,7 @@ def create_app(
     application.include_router(exchanges_router.router)
     application.include_router(admin_router_module.router)
     application.include_router(analysis_router.router)
+    application.include_router(datasets_router.router)
 
     @application.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

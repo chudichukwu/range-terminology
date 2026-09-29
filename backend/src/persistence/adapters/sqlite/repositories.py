@@ -383,6 +383,22 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
 
     @staticmethod
     def _summary_from_row(row: sqlite3.Row) -> DatasetSummary:
+        raw_issues = row["issues_json"] if "issues_json" in row.keys() else "[]"
+        try:
+            items = json.loads(str(raw_issues)) if raw_issues else []
+            issues = tuple(
+                QualityIssue(
+                    kind=str(item.get("kind", "")),
+                    detail=str(item.get("detail", "")),
+                    index=item.get("index"),
+                    gap_start_ms=item.get("gap_start_ms"),
+                    gap_end_ms=item.get("gap_end_ms"),
+                )
+                for item in items
+                if isinstance(item, dict) and item.get("kind") and item.get("detail")
+            )
+        except Exception:
+            issues = ()
         return DatasetSummary(
             symbol=str(row["symbol"]),
             timeframe=str(row["timeframe"]),
@@ -393,6 +409,7 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
             quality_status=QualityStatus(str(row["quality_status"])),
             ingested_at_ms=int(row["ingested_at_ms"]),
             updated_at_ms=int(row["updated_at_ms"]),
+            issues=issues,
         )
 
     # ==================================================================

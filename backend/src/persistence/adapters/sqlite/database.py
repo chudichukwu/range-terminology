@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from threading import RLock
 
 from persistence.errors import PersistenceError, PersistenceErrorCode
 from persistence.migrations import MIGRATIONS, SCHEMA_VERSION
@@ -30,6 +31,7 @@ class SqliteDatabase:
         *,
         clock_ms: Callable[[], int] | None = None,
     ) -> None:
+        self._lock = RLock()
         self._path = Path(path)
         self._clock_ms = clock_ms if clock_ms is not None else utc_clock_ms
         if self._path != Path(":memory:"):
@@ -96,15 +98,16 @@ class SqliteDatabase:
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
         """Explicit transaction scope: commit on success, rollback on error."""
-        try:
-            yield self._conn
-            self._conn.commit()
-        except sqlite3.Error as exc:
-            self._conn.rollback()
-            raise self._wrap(exc) from exc
-        except BaseException:
-            self._conn.rollback()
-            raise
+        with self._lock:
+            try:
+                yield self._conn
+                self._conn.commit()
+            except sqlite3.Error as exc:
+                self._conn.rollback()
+                raise self._wrap(exc) from exc
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     @staticmethod
     def _wrap(exc: sqlite3.Error) -> PersistenceError:

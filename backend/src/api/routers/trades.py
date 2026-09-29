@@ -55,7 +55,7 @@ def _visible_strategy_ids(container, user) -> set[str] | None:  # type: ignore[n
     """None means unrestricted (OWNER)."""
     if user.role.value == "owner":
         return None
-    return {strategy.name for strategy in container.strategies.list(user)}
+    return {strategy.id for strategy in container.strategies.list(user)}
 
 
 @router.get("/statistics")

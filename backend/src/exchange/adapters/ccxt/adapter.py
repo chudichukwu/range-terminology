@@ -356,7 +356,7 @@ class CcxtExchangeLike(Protocol):
     def fetch_ticker(self, symbol: str) -> dict[str, object]: ...
     def fetch_order_book(self, symbol: str, limit: int) -> dict[str, object]: ...
     def fetch_ohlcv(
-        self, symbol: str, timeframe: str, limit: int, since_ms: int | None = None
+        self, symbol: str, timeframe: str, since: int | None = None, limit: int | None = None
     ) -> list[object]: ...
     def load_markets(self) -> object: ...
     def fetch_balance(self) -> dict[str, object]: ...
@@ -522,7 +522,7 @@ class CcxtAdapter(ExchangePort):
         limit: int = 200,
         since_ms: int | None = None,
     ) -> tuple[Candle, ...]:
-        return normalize_candles(self._call("fetch_ohlcv", symbol, timeframe, limit, since_ms))
+        return normalize_candles(self._call("fetch_ohlcv", symbol, timeframe, since_ms, limit))
 
     @property
     def supported_timeframes(self) -> tuple[str, ...]:

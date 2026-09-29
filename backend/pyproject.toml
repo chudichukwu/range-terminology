@@ -10,6 +10,9 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.0",
     "pandas>=2.2",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "ccxt>=4.5.82",
 ]
 
 [project.optional-dependencies]

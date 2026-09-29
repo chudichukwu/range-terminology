@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { Timeframe } from "@/lib/api/types";
 
-const CANONICAL: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
+const CANONICAL: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"];
 
 export function TimeframeSelector({
   value,
@@ -15,7 +15,7 @@ export function TimeframeSelector({
   available?: string[];
 }) {
   return (
-    <div role="group" aria-label="Timeframe" className="inline-flex rounded-sm border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-0.5">
+    <div role="group" aria-label="Timeframe" className="inline-flex flex-wrap rounded-sm border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-1)] p-0.5">
       {CANONICAL.map((tf) => {
         const active = tf === value;
         const disabled = available ? !available.includes(tf) : false;

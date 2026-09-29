@@ -52,6 +52,10 @@ class UserService:
 
     # ----- registration & authentication -----
 
+    def register(self, email: str, password: str) -> User:
+        """Public signup; only the first account receives the bootstrap OWNER role."""
+        return self._create_user(email, password, role=Role.USER, actor=None, signup=True)
+
     def create_user(
         self,
         email: str,
@@ -65,12 +69,17 @@ class UserService:
         The FIRST account bootstraps as OWNER without an actor; afterwards
         only an OWNER actor may create accounts.
         """
+        return self._create_user(email, password, role=role, actor=actor, signup=False)
+
+    def _create_user(
+        self, email: str, password: str, *, role: Role, actor: User | None, signup: bool
+    ) -> User:
         now = self._clock_ms()
         normalized = email.strip().lower()
         if "@" not in normalized or len(normalized) < 5 or " " in normalized:
             raise ValidationError("a valid email address is required")
         existing_count = len(self._store.list_users())
-        if existing_count > 0:
+        if existing_count > 0 and not signup:
             if actor is None:
                 raise UnauthenticatedError("authentication required to create users")
             if actor.role is not Role.OWNER:

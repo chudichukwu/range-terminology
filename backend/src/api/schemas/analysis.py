@@ -84,6 +84,9 @@ class FreshnessOut(BaseModel):
 
 
 class AnalysisOut(BaseModel):
+    market_state: str | None = None
+    timeframe_context: dict[str, object] = Field(default_factory=dict)
+    venue: str | None = None
     symbol: str
     timeframe: str
     strategy_id: str | None = None
@@ -92,6 +95,7 @@ class AnalysisOut(BaseModel):
     ticker_bid: float | None = None
     ticker_ask: float | None = None
     ticker_timestamp_ms: int | None = None
+    swing_failures: list[dict[str, object]] = Field(default_factory=list)
     candles: list[CandleOutLite] = Field(default_factory=list)
     quality_issues: list[str] = Field(default_factory=list)
     is_analysis_safe: bool = True

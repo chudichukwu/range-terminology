@@ -1,13 +1,12 @@
-import { PageHeader, ContentContainer } from "@/components/ui/PageHeader";
-import { PlaceholderPageShell } from "@/components/state/StatePrimitives";
-
-export default function AdminPage() {
-  return (
-    <>
-      <PageHeader title="Admin" description="System overview — OWNER only. Server enforces role; sidebar merely hides." breadcrumbs={[{ label: "Admin" }]} />
-      <ContentContainer>
-        <PlaceholderPageShell title="Admin — foundation" description="Overview KPIs (user/dataset counts, provider status) and links to Users/Health/Audit arrive in the Admin phase. Permission denied state is established." />
-      </ContentContainer>
-    </>
-  );
+"use client";
+import {useEffect,useState} from "react";
+import Link from "next/link";
+import {api} from "@/lib/api/client";
+import type {SystemHealth,TradingActivity} from "@/lib/api/types";
+import {WorkspaceHeader,ErrorNotice} from "@/components/workspace/shared";
+type Provider={venue:string;requests:number;failures:number;retries:number;last_error:string|null;last_success_ms:number|null;last_latency_ms:number|null};
+export default function AdminPage(){
+ const [data,setData]=useState<{health:SystemHealth;activity:TradingActivity;providers:Provider[]}|null>(null),[error,setError]=useState<unknown>(null),[tick,setTick]=useState(0);
+ useEffect(()=>{let active=true;const load=async()=>{try{const [h,a,p]=await Promise.all([api.getSystemHealth(),api.getTradingActivity(10),api.get<Provider[]>("/admin/providers")]);if(active){setData({health:h.data,activity:a.data,providers:p.data});setError(null);}}catch(e){if(active)setError(e);}};void load();const timer=setInterval(load,30000);return()=>{active=false;clearInterval(timer);};},[tick]);
+ return <div className="workspace"><WorkspaceHeader eyebrow="OWNER CONSOLE" title="Operations & stats" description="System health, provider reliability and recorded research activity."><button className="primary-button" onClick={()=>setTick(t=>t+1)}>Refresh</button></WorkspaceHeader><ErrorNotice error={error}/><div className="chips" style={{marginBottom:24}}>{[["Users","users"],["Audit log","audit"],["System health","health"],["Trading activity","activity"]].map(([label,path])=><Link key={path} className="secondary-button" href={`/admin/${path}`}>{label} ↗</Link>)}</div>{!data&&!error&&<p>Loading operations…</p>}{data&&<><div className="stat-grid">{[["Users",data.health.user_count],["Stored datasets",data.health.dataset_count],["Backtest runs",data.activity.totals.backtest_runs],["Recorded trades",data.activity.totals.trades]].map(([label,value])=><div className="stat-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><section className="panel settings-panel"><h2>Market data providers</h2><p className="muted">Actual candle requests since server startup. Cache hits are excluded. Refreshes every 30 seconds.</p><div className="token-timeframes" style={{padding:0,marginTop:20}}>{data.providers.map(p=><div className="timeframe-card" key={p.venue}><strong>{p.venue}</strong><span>{p.last_error ? p.last_error.replaceAll("_"," ") : p.last_success_ms ? "Last request succeeded" : "Not used yet"}</span><small>{p.requests} requests · {p.failures} failed attempts · {p.retries} retries</small><small>Last attempt: {p.last_latency_ms??"—"} ms</small><small>Last success: {p.last_success_ms?new Date(p.last_success_ms).toLocaleString():"—"}</small></div>)}</div></section><section className="panel settings-panel" style={{marginTop:20}}><h2>Recent backtests</h2><p className="muted">Simulated results; these are not live account balances.</p>{data.activity.recent_backtests.length?data.activity.recent_backtests.map(r=><div className="level-row" key={r.run_id}><Link href={`/backtests/${r.run_id}`}>{r.symbol} · {r.timeframe} ↗</Link><span>{r.total_trades} trades</span><b>{r.final_equity.toLocaleString()}</b></div>):<p className="muted">No recorded backtests yet.</p>}</section></>}</div>;
 }

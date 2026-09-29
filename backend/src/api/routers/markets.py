@@ -3,13 +3,27 @@
 from fastapi import APIRouter, Query
 
 from api.dependencies import ContainerDep, CurrentUser
+from app_layer.services.providers import SOURCES, public_source
 
 router = APIRouter(prefix="/markets", tags=["markets"])
 
 
+@router.get("/sources")
+def sources(_user: CurrentUser) -> list[dict[str, str]]:
+    return [{"id": key, "name": name} for key, name in SOURCES.items()]
+
+
+@router.get("/symbols")
+def symbols(_user: CurrentUser, venue: str, q: str = "") -> list[str]:
+    source = public_source(venue)
+    with source.lock:
+        return [s for s in source.adapter.get_markets() if q.upper() in s.upper()][:200]
+
+
 @router.get("/timeframes")
-def supported_timeframes(container: ContainerDep, _user: CurrentUser) -> dict[str, object]:
-    return {"timeframes": list(container.markets.supported_timeframes())}
+def supported_timeframes(container: ContainerDep, _user: CurrentUser, venue: str | None = None) -> dict[str, object]:
+    facade = public_source(venue).facade if venue else container.markets
+    return {"timeframes": list(facade.supported_timeframes())}
 
 
 @router.get("/{symbol_dashed}/ticker")
