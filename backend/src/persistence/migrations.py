@@ -8,7 +8,7 @@ are impossible. No external migration framework — deliberate and small.
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _V1_STATEMENTS: tuple[str, ...] = (
     """
@@ -216,6 +216,14 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=1, name="initial_schema", statements=_V1_STATEMENTS),
     Migration(version=2, name="backtest_runs", statements=_V2_STATEMENTS),
     Migration(version=3, name="application_layer", statements=_V3_STATEMENTS),
+    Migration(version=4, name="journal_entries", statements=(
+        """CREATE TABLE journal_entries (
+            id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title TEXT NOT NULL, body TEXT NOT NULL, category TEXT NOT NULL,
+            symbol TEXT NOT NULL, timeframe TEXT NOT NULL,
+            created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL)""",
+        "CREATE INDEX idx_journal_owner ON journal_entries(owner_user_id, updated_at_ms)",
+    )),
 )
 
 assert MIGRATIONS[-1].version == SCHEMA_VERSION, "migration history must end at SCHEMA_VERSION"

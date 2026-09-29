@@ -32,6 +32,7 @@ from api.middleware import RequestIdMiddleware, request_id_of
 from api.routers import (
     admin as admin_router_module,
 )
+from api.routers import journal as journal_router
 from api.routers import alerts as alerts_router
 from api.routers import (
     analysis as analysis_router,
@@ -142,6 +143,7 @@ def create_app(
 
     application.add_exception_handler(AppError, app_error_handler)
 
+    application.include_router(journal_router.router)
     application.include_router(alerts_router.router)
     application.include_router(auth_router.router)
     application.include_router(watchlists_router.router)

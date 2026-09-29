@@ -91,7 +91,7 @@ export function Scanner({ initialId }: { initialId?: string }) {
   shown.sort((a, b) => Number(!!b.data && edge(b.data)) - Number(!!a.data && edge(a.data)) || a.item.symbol.localeCompare(b.item.symbol) || TIMEFRAMES.indexOf(a.tf as any) - TIMEFRAMES.indexOf(b.tf as any));
   return <div className="workspace">
     <WorkspaceHeader eyebrow="GRANDBLUE TERMINAL" title="A clearer view of the market." description="Your markets. Every timeframe. One place to find the range.">
-      <Link className="secondary-button" href="/strategies/new">+ New strategy</Link><Link className="secondary-button" href="/admin">Admin</Link><Link className="secondary-button" href="/alerts">Manage alerts ↗</Link><button className="primary-button" disabled={busy || !items.length} onClick={() => void scan()}>{busy ? "Scanning…" : "Refresh scan"}</button>
+      <Link className="secondary-button" href="/strategies/new">+ New strategy</Link><Link className="secondary-button" href="/alerts">Manage alerts ↗</Link><button className="primary-button" disabled={busy || !items.length} onClick={() => void scan()}>{busy ? "Scanning…" : "Refresh scan"}</button>
     </WorkspaceHeader>
     <ErrorNotice error={error} />
     <div className="stat-grid">

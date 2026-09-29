@@ -4,7 +4,7 @@ import {api} from "@/lib/api/client";
 import {NavIcon} from "./NavIcon";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-const NAV = [{ href: "/", label: "Scanner", icon: "⌘" }, { href: "/watchlists", label: "Watchlists", icon: "☷" }, { href: "/alerts", label: "Alerts", icon: "◉" }, { href: "/backtests", label: "Backtests", icon: "↗" }, { href: "/strategies", label: "Strategies", icon: "◇" }];
+const NAV = [{ href: "/journal", label: "Journal", icon: "" },{ href: "/", label: "Scanner", icon: "⌘" }, { href: "/watchlists", label: "Watchlists", icon: "☷" }, { href: "/alerts", label: "Alerts", icon: "◉" }, { href: "/backtests", label: "Backtests", icon: "↗" }, { href: "/strategies", label: "Strategies", icon: "◇" }];
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { collapsed: boolean; onToggle: () => void; mobileOpen: boolean; onMobileClose: () => void }) {
  const path = usePathname();
  const [owner,setOwner]=useState(false);

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import {api} from "@/lib/api/client";
+
 type Entry = { label: string; href: string; hint: string };
 
 const ENTRIES: Entry[] = [
@@ -18,12 +20,19 @@ const ENTRIES: Entry[] = [
   { label: "Admin · Audit", href: "/admin/audit", hint: "Audit log" },
   { label: "Account", href: "/me", hint: "Profile & session" },
   { label: "Login", href: "/login", hint: "Sign in" },
-  { label: "Register", href: "/register", hint: "First user → OWNER" }
+  { label: "Register", href: "/register", hint: "Create an account" }
 ];
 
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [query, setQuery] = useState("");
   const router = useRouter();
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    setOwner(false);
+    let active = true;
+    if (open) api.me().then(({data}) => {if(active) setOwner(data.role === "owner");}).catch(() => {});
+    return () => { active = false; };
+  }, [open]);
 
   useEffect(() => {
     if (!open) setQuery("");
@@ -34,9 +43,10 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ENTRIES;
-    return ENTRIES.filter((e) => e.label.toLowerCase().includes(q) || e.hint.toLowerCase().includes(q));
-  }, [query]);
+    const visible = ENTRIES.filter(e => owner || !e.href.startsWith("/admin"));
+    if (!q) return visible;
+    return visible.filter((e) => e.label.toLowerCase().includes(q) || e.hint.toLowerCase().includes(q));
+  }, [query, owner]);
 
   if (!open) return null;
 

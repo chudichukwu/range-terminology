@@ -492,6 +492,33 @@ class SqliteAppStore(
             )
         return tuple(events)
 
+    def list_journal_entries(self, owner_id: str) -> list[dict]:
+        with self._db.transaction() as conn:
+            rows = conn.execute("SELECT * FROM journal_entries WHERE owner_user_id=? ORDER BY updated_at_ms DESC, id", (owner_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_journal_entry(self, owner_id: str, entry_id: str, values: dict, *, create: bool = False) -> dict:
+        from app_layer.errors import NotFoundError
+        now = utc_clock_ms()
+        with self._db.transaction() as conn:
+            if create:
+                conn.execute("INSERT INTO journal_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (entry_id, owner_id, values['title'], values['body'], values['category'], values['symbol'], values['timeframe'], now, now))
+            else:
+                result = conn.execute("UPDATE journal_entries SET title=?, body=?, category=?, symbol=?, timeframe=?, updated_at_ms=? WHERE id=? AND owner_user_id=?",
+                    (values['title'], values['body'], values['category'], values['symbol'], values['timeframe'], now, entry_id, owner_id))
+                if not result.rowcount:
+                    raise NotFoundError("journal entry not found")
+            row = conn.execute("SELECT * FROM journal_entries WHERE id=? AND owner_user_id=?", (entry_id, owner_id)).fetchone()
+        return dict(row)
+
+    def delete_journal_entry(self, owner_id: str, entry_id: str) -> None:
+        from app_layer.errors import NotFoundError
+        with self._db.transaction() as conn:
+            result = conn.execute("DELETE FROM journal_entries WHERE id=? AND owner_user_id=?", (entry_id, owner_id))
+            if not result.rowcount:
+                raise NotFoundError("journal entry not found")
+
 
 def build_app_store(
     path: str, *, clock_ms: Callable[[], int] | None = None
