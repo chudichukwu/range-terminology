@@ -22,9 +22,25 @@ Set `GRANDBLUE_ALLOWED_ORIGINS` to the exact frontend HTTPS origin if calling
 backend directly; same-origin Vercel proxy does not need browser CORS access.
 Use HTTPS. Never expose an empty database publicly: restore existing users first.
 Keep a single worker: the current alert scheduler starts once per process.
-A Mac-hosted temporary backend requires the Mac awake and a secure HTTPS tunnel;
-its temporary URL must be configured in Vercel and redeployed if it changes.
-No tunnel or paid hosting service is provisioned by this document.
+The deployment target is fully cloud-hosted; a Mac tunnel is not part of the plan.
+
+### Container option with persistent storage
+
+Build from the repository root: `docker build -f deployment/Dockerfile -t grandblue-api .`
+Mount a durable volume at `/data`, readable/writable by UID 10001. Restore the
+existing database to `/data/grandblue.db` **before** starting the service.
+The production factory refuses a missing database or one without an active
+owner, and defaults to closed public registration. Local development continues
+to use `dev_server.py`. The container runs one API/alert worker and uses `/health`
+for its health check. Configure the host's HTTPS endpoint as Vercel's
+`API_SERVER_URL`. Do not put a database or secrets in the image.
+
+This container needs a host with a persistent volume. It must not be deployed
+unchanged to an ephemeral free service. Render's free service has no persistent
+disk and sleeps when idle; moving there requires a managed database adapter,
+data migration and a separate plan for alerts while the service sleeps.
+No hosting plan, database migration, or paid service has been provisioned yet.
+Container execution still needs verification on a host with Docker installed.
 
 ## Preserve data
 
