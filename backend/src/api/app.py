@@ -11,6 +11,7 @@ trading arrives it must pass Authentication -> Authorization -> ExecutionMode
 -> RiskEngine -> ExecutionEngine, never HTTP -> Exchange.
 """
 
+import os
 import asyncio
 import threading
 from collections.abc import AsyncIterator
@@ -104,7 +105,7 @@ def create_app(
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=[v.strip() for v in os.environ.get("GRANDBLUE_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if v.strip()],
         expose_headers=["X-Request-Id"],
         allow_credentials=True,
         allow_methods=["*"],

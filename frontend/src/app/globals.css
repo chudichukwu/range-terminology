@@ -248,3 +248,22 @@ body {
   .cursor-glow { display: block; }
 }
 .settings-fields textarea{width:100%;resize:vertical;min-height:90px;padding:12px;border:1px solid #303035;border-radius:10px;background:#151517;color:#e8e8ee;font:inherit}
+
+/* Phone/tablet touch and long-content safeguards. */
+@media(max-width:1024px){
+ .toolbar-controls,.panel-toolbar,.level-row{flex-wrap:wrap}
+ .toolbar-controls .field{min-width:0;max-width:100%}
+ .settings-fields>*{min-width:0}
+ .level-row>*{overflow-wrap:anywhere;min-width:0}
+ .panel-toolbar .chips{flex-wrap:wrap;max-width:100%}
+ .workspace-heading h1{overflow-wrap:anywhere}
+}
+@media(max-width:600px){
+ .toolbar-controls{width:100%}
+ .toolbar-controls .field{width:100%}
+ .field input,.field select,.field textarea,.journal-toolbar input,.journal-toolbar select{font-size:16px}
+ .chip,.primary-button,.secondary-button,.journal-delete{min-height:44px}
+ .event-row{flex-wrap:wrap}.event-time{margin-left:0}
+ .app-footer{flex-wrap:wrap;gap:8px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+ .mobile-sidebar{overflow-y:auto;max-height:100dvh}
+}

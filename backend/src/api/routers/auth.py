@@ -1,10 +1,11 @@
 """Authentication endpoints: public registration, login, logout, me."""
 
+import os
 from fastapi import APIRouter, Request
 
 from api.dependencies import ContainerDep
 from api.schemas.auth import LoginRequest, LogoutRequest, RegisterRequest
-from app_layer.errors import UnauthenticatedError
+from app_layer.errors import UnauthenticatedError, ForbiddenError
 from app_layer.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -32,6 +33,8 @@ def _bearer_token(request: Request) -> str:
 @router.post("/register", status_code=201)
 def register(payload: RegisterRequest, container: ContainerDep) -> dict[str, object]:
     """Sign up as USER, or bootstrap OWNER when no accounts exist yet."""
+    if os.environ.get("GRANDBLUE_PRIVATE_BETA") == "1":
+        raise ForbiddenError("Registration is closed during private testing; contact the owner")
     container.users.register(payload.email, payload.password)
     user, token = container.users.authenticate(payload.email, payload.password)
     return {"access_token": token, "token_type": "bearer", "user": _user_dict(user)}

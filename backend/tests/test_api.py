@@ -505,3 +505,10 @@ class TestTradesAndAuditEndpoints:
             blob = json.dumps(event)
             assert "audited-pass" not in blob
             assert event["outcome"] in {"success", "rejected"}
+
+
+def test_private_beta_blocks_public_signup_but_keeps_owner_login(client, monkeypatch):
+    bootstrap_owner(client)
+    monkeypatch.setenv('GRANDBLUE_PRIVATE_BETA', '1')
+    assert client.post('/auth/register',json={'email':'blocked@example.com','password':'password-123'}).status_code == 403
+    assert client.post('/auth/login',json={'email':'root@example.com','password':'root-pass-1'}).status_code == 200
