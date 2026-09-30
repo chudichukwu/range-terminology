@@ -520,6 +520,23 @@ class SqliteAppStore(
                 raise NotFoundError("journal entry not found")
 
 
+    def observed_ranges(self, owner_id: str) -> list[dict]:
+        with self._db.transaction() as conn:
+            rows = conn.execute("SELECT * FROM observed_ranges WHERE owner_user_id=? ORDER BY created_at_ms DESC", (owner_id,)).fetchall()
+        return [dict(id=row['id'], created_at_ms=row['created_at_ms'], **json.loads(row['payload_json'])) for row in rows]
+
+    def save_observed_range(self, owner_id: str, entry_id: str, payload: dict) -> None:
+        with self._db.transaction() as conn:
+            conn.execute("INSERT INTO observed_ranges VALUES (?, ?, ?, ?)",
+                         (entry_id, owner_id, json.dumps(payload, allow_nan=False), utc_clock_ms()))
+
+    def delete_observed_range(self, owner_id: str, entry_id: str) -> None:
+        from app_layer.errors import NotFoundError
+        with self._db.transaction() as conn:
+            if not conn.execute("DELETE FROM observed_ranges WHERE id=? AND owner_user_id=?", (entry_id, owner_id)).rowcount:
+                raise NotFoundError("saved range not found")
+
+
 def build_app_store(
     path: str, *, clock_ms: Callable[[], int] | None = None
 ) -> SqliteAppStore:

@@ -54,3 +54,25 @@ Synthetic tests cover causality, trend/range separation, POI chronology, midpoin
 observations, allocation validation, long/short runner fills and terminal exits.
 Real venue/date replay against the screenshot examples is still needed to tune
 recognition quality. The implementation does not claim to match every drawn box.
+
+## Saved observations and personal review
+
+The Manual range panel can save an account-private example, including user
+boundaries, notes/reason, original automatic bounds, and the loaded analysis and
+candles. Snapshots are labelled user-supplied, not authoritative execution data.
+My ranges reopens that fixed snapshot or applies the saved bounds to a live chart.
+Deleting an example removes it from subsequent reviews. Examples are immutable;
+save another observation to document a later revision.
+
+The optional 75% level is the midpoint of the upper half of the displayed range.
+It defaults off and resets when market, venue or timeframe changes.
+
+Review groups examples by symbol/venue/timeframe, counts a repeated closed-candle
+snapshot once, and reports median boundary offsets normalised by automatic range
+width. With at least 10 distinct observations it fits median offsets on the older
+70% of saves and measures absolute boundary error on the remaining newer labels,
+compared with unchanged automatic boundaries. This simple experimental model is
+not automatically applied, is not an LLM, does not parse free-text reasoning, and
+does not measure returns. Overlapping chart periods still introduce dependence;
+the chronological check alone is not proof of generalisation. No model is shared
+between accounts, and owners cannot read other users' saved observations.

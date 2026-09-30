@@ -8,6 +8,7 @@ import {api} from "@/lib/api/client";
 type Entry = { label: string; href: string; hint: string };
 
 const ENTRIES: Entry[] = [
+  {label:"My ranges",href:"/ranges",hint:"Saved observations & review"},
   { label: "Scanner", href: "/", hint: "Main workstation" },
   { label: "Watchlists", href: "/watchlists", hint: "Scan pairs" },
   { label: "Strategies", href: "/strategies", hint: "Configure engines" },

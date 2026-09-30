@@ -842,7 +842,7 @@ class TestRunPersistence:
 
         conn = sqlite3.connect(str(db_path))
         for table in (
-            "journal_entries", "audit_log", "exchange_connections", "strategy_configs",
+            "observed_ranges", "journal_entries", "audit_log", "exchange_connections", "strategy_configs",
             "watchlist_items", "watchlists", "sessions", "users",
         ):
             conn.execute(f"DROP TABLE IF EXISTS {table}")

@@ -247,3 +247,4 @@ body {
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .cursor-glow { display: block; }
 }
+.settings-fields textarea{width:100%;resize:vertical;min-height:90px;padding:12px;border:1px solid #303035;border-radius:10px;background:#151517;color:#e8e8ee;font:inherit}

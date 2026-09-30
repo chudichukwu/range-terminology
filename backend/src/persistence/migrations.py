@@ -8,7 +8,7 @@ are impossible. No external migration framework — deliberate and small.
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _V1_STATEMENTS: tuple[str, ...] = (
     """
@@ -223,6 +223,12 @@ MIGRATIONS: tuple[Migration, ...] = (
             symbol TEXT NOT NULL, timeframe TEXT NOT NULL,
             created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL)""",
         "CREATE INDEX idx_journal_owner ON journal_entries(owner_user_id, updated_at_ms)",
+    )),
+    Migration(version=5, name="observed_ranges", statements=(
+        """CREATE TABLE observed_ranges (
+          id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          payload_json TEXT NOT NULL, created_at_ms INTEGER NOT NULL)""",
+        "CREATE INDEX idx_observed_ranges_owner ON observed_ranges(owner_user_id, created_at_ms)",
     )),
 )
 

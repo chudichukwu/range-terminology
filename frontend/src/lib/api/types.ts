@@ -310,6 +310,7 @@ export type FreshnessInfo = {
   last_closed_timestamp_ms: number | null;
 };
 export type PairAnalysis = {
+  venue?: string | null;
   range_events?: {kind:string;repeated?:boolean;timestamp:number;level:number;range_low:number;range_high:number;range_established:number}[];
   market_state?: string;
   timeframe_context?: Record<string, { state:string; trend:string|null; adx:number|null; atr:number|null; low:number|null; high:number|null; midpoint:number|null; reason:string; role:string }>;
