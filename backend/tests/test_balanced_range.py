@@ -141,7 +141,7 @@ def test_bearish_sfp_mirrors_bullish():
     assert signal["tp2"] == 100.4
 
 
-def staged(bars, direction=PositionDirection.LONG):
+def staged(bars, direction=PositionDirection.LONG, runner_fraction=0):
     config = BacktestConfig(
         symbol="BTC/USDT",
         timeframe="5m",
@@ -172,6 +172,8 @@ def staged(bars, direction=PositionDirection.LONG):
         zone="lower_edge",
         trade_seq=1,
         staged_exit=dict(
+            runner_fraction=runner_fraction,
+            runner_trail_percent=.02,
             tp1_fraction=0.5,
             tp2=119.6 if direction == PositionDirection.LONG else 100.4,
             buffer=0.75,
@@ -217,6 +219,7 @@ def test_multitimeframe_replay_executes_next_open_and_preserves_context():
     from backtesting.balanced import replay_balanced
 
     preset = range_touch_preset()
+    preset["risk_config"]["runner_fraction"] = 0
     entry_bars = [candle(i, 100, 101, 99, 100) for i in range(20)]
     entry_bars += [
         candle(20, 92, 93, 89, 91),
@@ -400,3 +403,80 @@ def test_broken_range_reclaims_same_boundaries_without_rewriting_history():
     assert result[-1].established == bars[-1].close_time_ms
     # Reclaim does not waive balance/trend filters or imply an approved trade.
     assert result[-1].established > original.established
+
+
+def test_local_range_survives_high_adx_but_strict_policy_rejects(monkeypatch):
+    import range_engine.balanced as module
+    original = module.indicators
+    def high_adx(bars):
+        out = original(bars)
+        out['adx'][54:] = 40
+        return out
+    monkeypatch.setattr(module, 'indicators', high_adx)
+    contextual = range_timeline(wave(), DEFAULTS)
+    strict = range_timeline(wave(), {**DEFAULTS, 'range_policy': 'strict'})
+    assert any(s.valid and s.adx == 40 for s in contextual)
+    assert not any(s.valid for s in strict)
+    assert contextual[:80] == range_timeline(wave()[:80], DEFAULTS)
+
+
+def test_runner_allocations_and_next_candle_trailing():
+    bars = [candle(0,101,108,100,107), candle(1,108,112,107,111),
+            candle(2,111,122,110,121), candle(3,121,130,120,129),
+            candle(4,129,130,125,126)]
+    trade, _, pnl = staged(bars, runner_fraction=.2)
+    fills = trade.context.extra['exit_fills']
+    assert [f['reason'] for f in fills] == ['partial_target','tp2_partial','runner_stop']
+    assert [f['quantity'] for f in fills] == pytest.approx([5,3,2])
+    assert fills[-1]['price'] == pytest.approx(129*.98)
+    assert pnl == pytest.approx(5*9+3*18.6+2*(129*.98-101))
+    # At candle 3, its low is below the stop derived from its close; that new stop
+    # must not be applied until candle 4.
+    assert fills[-1]['timestamp'] == bars[4].close_time_ms
+
+
+def test_short_runner_and_end_of_data_account_for_every_unit():
+    bars = [candle(0,119,120,112,113), candle(1,113,114,108,109),
+            candle(2,109,110,98,99), candle(3,99,100,90,91), candle(4,91,95,90,94)]
+    trade, _, _ = staged(bars, PositionDirection.SHORT, runner_fraction=.2)
+    fills = trade.context.extra['exit_fills']
+    assert fills[-1]['reason'] == 'runner_stop'
+    assert fills[-1]['price'] == pytest.approx(91*1.02)
+    assert sum(f['quantity'] for f in fills) == pytest.approx(10)
+    trade, _, _ = staged(bars[:3], PositionDirection.SHORT, runner_fraction=.2)
+    assert trade.context.extra['exit_fills'][-1]['reason'] == 'end_of_data'
+    assert sum(f['quantity'] for f in trade.context.extra['exit_fills']) == pytest.approx(10)
+
+
+def test_runner_cannot_inflate_reward_risk_and_invalid_allocations_rejected():
+    signal = evaluate_entry(sfp_bars(), frozen_context(), DEFAULTS)
+    baseline = trade_plan(signal, DEFAULTS)['reward_risk_ratio']
+    with_runner = trade_plan(signal, {**DEFAULTS,'runner_fraction':.2})
+    assert with_runner['reward_risk_ratio'] < baseline
+    for value in (.5, .8, -1):
+        with pytest.raises(ValueError):
+            settings({'risk_config':{'runner_fraction':value}})
+
+
+def test_midpoint_events_use_existing_boundaries_and_are_causal():
+    from range_engine.context import range_observations
+    snap = frozen_context()['1h'].at(BASE)
+    timeline = SimpleNamespace(at=lambda t: snap)
+    bars = [candle(0,105,106,104,105),candle(1,108,111,105,106),
+            candle(2,106,113,105,112),candle(3,112,113,106,107)]
+    events = range_observations(bars,timeline,DEFAULTS)
+    assert [e['kind'] for e in events] == ['midpoint_rejection','midpoint_reclaim','midpoint_lost']
+    assert range_observations(bars[:3],timeline,DEFAULTS) == events[:2]
+    unconfirmed = SimpleNamespace(at=lambda t: replace(snap,established=0))
+    assert range_observations(bars,unconfirmed,DEFAULTS) == []
+
+
+def test_prior_poi_excludes_range_and_future_bars():
+    from range_engine.context import nearby_levels
+    bars = wave()
+    snap = replace(frozen_context()['1h'].at(BASE), low=89.8, high=110.2,
+                   origin=bars[70].timestamp)
+    original = nearby_levels(bars[:71],snap,DEFAULTS)
+    assert {e['kind'] for e in original} == {'prior_support','prior_resistance'}
+    assert nearby_levels(bars,snap,DEFAULTS) == original
+    assert all(e['timestamp'] < snap.origin for e in original)

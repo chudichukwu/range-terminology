@@ -5,6 +5,7 @@ export type StrategyPayloadDraft = { range_config: Record<string, unknown>; sign
 export const RANGE_TOUCH_PRESET: StrategyPayloadDraft = {
   "range_config": {
     "mode": "balanced",
+    "range_policy": "contextual",
     "lookback": 100,
     "pivot_window": 2,
     "min_touches": 2,
@@ -30,7 +31,8 @@ export const RANGE_TOUCH_PRESET: StrategyPayloadDraft = {
     "min_reward_risk": 2.0,
     "risk_per_trade": 0.01,
     "max_leverage": 3.0,
-    "runner_fraction": 0.0
+    "runner_fraction": 0.2,
+    "runner_trail_percent": 0.02
   }
 };
 
@@ -52,6 +54,6 @@ export function StrategyForm(p: Props) {
  </div>;
 }
 export function StrategySummary({ name, rangeConfig: r, signalConfig: s, riskConfig: k, active, updatedAt }: { name: string; active: boolean; rangeConfig: Config; signalConfig: Config; riskConfig: Config; payloadJson?: string; updatedAt?: number }) {
- if (r.mode === "balanced") return <aside className="panel detail-panel"><p className="eyebrow">CONFIRMED RANGE</p><h2>{name || "Your balanced-range playbook"}</h2><p className="muted">Weekly/daily context → 4H/1H range → lower-timeframe confirmation.</p>{[["Range",`2+ touches · ADX < ${r.adx_max ?? 22}`],["Minimum height",`${r.min_height_atr ?? 2.5}× ATR`],["Entry",human(String(s.confirmation ?? "sfp_or_rejection"))],["Stop",`Sweep + ${k.stop_buffer_atr ?? .375}× ATR`],["TP1",`${Number(k.tp1_fraction ?? .5)*100}% at midpoint`],["TP2","Opposite edge · full exit"],["Reward/risk",`≥ ${k.min_reward_risk ?? 2} weighted after costs`]].map(([label,value])=><div className="level-row" key={label}><span>{label}</span><b>{value}</b></div>)}</aside>;
+ if (r.mode === "balanced") return <aside className="panel detail-panel"><p className="eyebrow">CONFIRMED RANGE</p><h2>{name || "Your balanced-range playbook"}</h2><p className="muted">Weekly/daily context → 4H/1H range → lower-timeframe confirmation.</p>{[["Range",`2+ touches · ${r.range_policy === "strict" ? "strict balance" : "trend context"}`],["Minimum height",`${r.min_height_atr ?? 2.5}× ATR`],["Entry",human(String(s.confirmation ?? "sfp_or_rejection"))],["Stop",`Sweep + ${k.stop_buffer_atr ?? .375}× ATR`],["TP1",`${Number(k.tp1_fraction ?? .5)*100}% at midpoint`],["TP2",`${(1-Number(k.tp1_fraction??.5)-Number(k.runner_fraction??0))*100}% at opposite edge`],["Runner",`${Number(k.runner_fraction??0)*100}% · ${Number(k.runner_trail_percent??.02)*100}% trail`],["Reward/risk",`≥ ${k.min_reward_risk ?? 2} weighted after costs`]].map(([label,value])=><div className="level-row" key={label}><span>{label}</span><b>{value}</b></div>)}</aside>;
  return <aside className="panel detail-panel"><p className="eyebrow">AT A GLANCE</p><h2>{name || "Your range playbook"}</h2><span className="status-pill range">{active ? "Active" : "Paused"}</span>{[["Structure", human(String(r.mode ?? "structural"))], ["Entry", s.entry_mode === "touch" ? "Boundary touch" : "Close in edge zone"], ["Stop", `${Number(k.fixed_stop_percent ?? .02) * 100}% · ${human(String(k.stop_method ?? "range_percent"))}`], ["First target", human(String(k.target_method ?? "opposite_range_edge"))], ["Breakout runner", `${Math.round(Number(k.runner_fraction ?? 0) * 100)}%`]].map(([label, value]) => <div className="level-row" key={label}><span>{label}</span><b style={{ textAlign: "right", fontSize: 11 }}>{value}</b></div>)}<p className="muted" style={{ marginTop: 18 }}>{updatedAt ? `Saved ${new Date(updatedAt).toLocaleString()}` : "Save to use these rules in your scans and backtests."}</p></aside>;
 }

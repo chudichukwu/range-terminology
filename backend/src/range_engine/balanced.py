@@ -30,6 +30,9 @@ DEFAULTS = dict(
     risk_per_trade=0.01,
     max_leverage=3.0,
     confirmation="sfp_or_rejection",
+    range_policy="contextual",
+    runner_fraction=0.0,
+    runner_trail_percent=0.02,
 )
 ENTRY_TIMEFRAMES = ("1m", "5m", "15m")
 CONTEXT_TIMEFRAMES = ("1w", "1d", "4h", "1h")
@@ -41,6 +44,10 @@ def settings(payload):
         cfg.update({k: v for k, v in payload.get(key, {}).items() if k in DEFAULTS})
     for key, default in DEFAULTS.items():
         value = cfg[key]
+        if key == "range_policy":
+            if value not in ("contextual", "strict"):
+                raise ValueError("range_policy must be contextual or strict")
+            continue
         if key == "confirmation":
             if value not in ("sfp", "sfp_or_rejection", "any"):
                 raise ValueError("confirmation must be sfp, sfp_or_rejection or any")
@@ -65,6 +72,8 @@ def settings(payload):
         raise ValueError("Edge zone must be within (0, 25%]; reclaim window 1–3 bars")
     if not 0 < cfg["tp1_fraction"] < 1 or not 0 <= cfg["target_inset"] < 0.25:
         raise ValueError("TP1 fraction must be within (0, 100%); target inset below 25%")
+    if not 0 <= cfg["runner_fraction"] < 1 - cfg["tp1_fraction"] or not 0 < cfg["runner_trail_percent"] < 1:
+        raise ValueError("Runner plus TP1 must be below 100%; trailing distance within (0, 100%)")
     if cfg["stop_buffer_atr"] <= 0 or cfg["min_height_atr"] <= 0:
         raise ValueError("ATR stop buffer and minimum range height must be positive")
     if cfg["min_reward_risk"] < 2 or not 0 < cfg["risk_per_trade"] <= 0.1:
@@ -126,6 +135,8 @@ class Snapshot:
     reason: str = ""
     established: int = 0
     reclaimed: bool = False
+    origin: int = 0
+    preceding_trend: str | None = None
 
     @property
     def valid(self):
@@ -161,6 +172,7 @@ def range_timeline(bars, cfg):
     reclaimed = False
     retired_at = 0
     outside = 0
+    origin, preceding_trend = 0, None
     for i, bar in enumerate(bars):
         t = bar.close_time_ms
         if i < 54:
@@ -205,7 +217,7 @@ def range_timeline(bars, cfg):
             abs(ind[k][i] - ind[k][i - 5]) / 5 <= atr * cfg["ema_slope_atr"]
             for k in ("ema20", "ema50")
         )
-        common = dict(atr=atr, adx=adx, ema20=e20, ema50=e50, trend=trend)
+        common = dict(atr=atr, adx=adx, ema20=e20, ema50=e50, trend=trend or direction)
         if broken and anchor is None:
             old, broken_index = broken
             if i - broken_index > int(cfg["lookback"]):
@@ -240,6 +252,7 @@ def range_timeline(bars, cfg):
                         high_touches=nth,
                         reason="Closes outside and holds",
                         established=established,
+                        origin=origin, preceding_trend=preceding_trend,
                     )
                 )
                 broken = (anchor, i)
@@ -256,6 +269,8 @@ def range_timeline(bars, cfg):
                 and hi - lo >= atr * cfg["min_height_atr"]
                 else "transition"
             )
+            if cfg["range_policy"] == "contextual":
+                state = "ranging" if lo <= bar.close <= hi and hi - lo >= atr * cfg["min_height_atr"] else "transition"
             snapshots.append(
                 Snapshot(
                     t,
@@ -269,31 +284,44 @@ def range_timeline(bars, cfg):
                     if state == "trending"
                     else "Awaiting balance"
                     if state != "ranging"
-                    else "Reclaimed range" if reclaimed else "Confirmed balance",
+                    else "Reclaimed range" if reclaimed else "Confirmed local range",
                     established=established,
                     reclaimed=reclaimed,
+                    origin=origin, preceding_trend=preceding_trend,
                 )
             )
             continue
         if not highs or not lows or not atr > 0:
             snapshots.append(Snapshot(t, "transition", **common, reason="Awaiting repeated swings"))
             continue
-        tolerance = (max(highs) - min(lows)) * cfg["touch_tolerance"]
-        hi, nth = _cluster(highs, tolerance, outer="high", min_touches=cfg["min_touches"])
-        lo, ntl = _cluster(lows, tolerance, outer="low", min_touches=cfg["min_touches"])
-        matches = [j for j in ph if abs(hs[j] - hi) <= tolerance] + [
-            j for j in pl if abs(ls[j] - lo) <= tolerance
-        ]
-        contained = all(lo <= b.close <= hi for b in prior[min(matches) :]) if matches else False
-        reason = (
-            "Awaiting 2+ touches on both sides"
-            if min(ntl, nth) < cfg["min_touches"]
-            else "Range too small relative to ATR"
-            if hi - lo < atr * cfg["min_height_atr"]
-            else "Closes outside candidate range"
-            if not contained
-            else ""
-        )
+        # Prefer the widest supported history; fall back to recent local pauses.
+        candidates = [prior]
+        if cfg["range_policy"] == "contextual":
+            candidates += [prior[-n:] for n in (60, 40, 24) if len(prior) > n]
+        reason = "Awaiting repeated swings"
+        for candidate in candidates:
+            hs, ls = np.array([b.high for b in candidate]), np.array([b.low for b in candidate])
+            ph, pl = _find_pivot_highs(hs, int(cfg["pivot_window"])), _find_pivot_lows(ls, int(cfg["pivot_window"]))
+            highs, lows = [float(hs[j]) for j in ph], [float(ls[j]) for j in pl]
+            if not highs or not lows:
+                continue
+            tolerance = (max(highs) - min(lows)) * cfg["touch_tolerance"]
+            hi, nth = _cluster(highs, tolerance, outer="high", min_touches=cfg["min_touches"])
+            lo, ntl = _cluster(lows, tolerance, outer="low", min_touches=cfg["min_touches"])
+            matches = [j for j in ph if abs(hs[j] - hi) <= tolerance] + [j for j in pl if abs(ls[j] - lo) <= tolerance]
+            contained = all(lo - tolerance <= b.close <= hi + tolerance for b in candidate[min(matches):]) if matches else False
+            reason = (
+                "Awaiting 2+ touches on both sides" if min(ntl, nth) < cfg["min_touches"]
+                else "Range too small relative to ATR" if hi - lo < atr * cfg["min_height_atr"]
+                else "Closes outside candidate range" if not contained or not lo <= bar.close <= hi
+                else ""
+            )
+            if not reason:
+                origin = candidate[min(matches)].timestamp
+                before = [b for b in bars[:i+1] if b.timestamp < origin][-20:]
+                move = before[-1].close - before[0].close if len(before) >= 5 else 0
+                preceding_trend = "up" if move > 2 * atr else "down" if move < -2 * atr else None
+                break
         structure_valid = not reason
         if structure_valid:
             anchor = lo, hi, ntl, nth, t
@@ -304,6 +332,10 @@ def range_timeline(bars, cfg):
         elif structure_valid and (adx >= cfg["adx_max"] or not flat):
             reason = "Range structure found; awaiting balance for entry"
         state = "trending" if trending else "transition" if reason else "ranging"
+        if cfg["range_policy"] == "contextual":
+            state = "ranging" if structure_valid else "developing"
+            if structure_valid:
+                reason = "Confirmed local range; trend is separate context"
         snapshots.append(
             Snapshot(
                 t,
@@ -315,6 +347,7 @@ def range_timeline(bars, cfg):
                 high_touches=nth,
                 reason=reason or "Confirmed balance",
                 established=t if structure_valid else 0,
+                origin=origin if structure_valid else 0, preceding_trend=preceding_trend if structure_valid else None,
             )
         )
     return snapshots
@@ -362,7 +395,7 @@ def evaluate_entry(bars, timelines, cfg, *, range_timeframes=("4h", "1h")):
             continue
         tf, snap = selected
         latest_range = timelines[tf].at(current.close_time_ms)
-        if latest_range.state in ("breakout", "trending") or (
+        if latest_range.state == "breakout" or (cfg["range_policy"] == "strict" and latest_range.state == "trending") or (
             latest_range.established and latest_range.established != snap.established
         ):
             waiting.update(
@@ -526,10 +559,11 @@ def trade_plan(signal, cfg, equity=10000.0, fee=0.0005, slippage=0.0002, entry=N
     sign = 1 if signal["direction"] == "long" else -1
     stop, tp1, tp2 = signal["stop"], signal["tp1"], signal["tp2"]
     distance = sign * (price - stop)
-    reward = cfg["tp1_fraction"] * sign * (tp1 - price) + (1 - cfg["tp1_fraction"]) * sign * (
+    tp2_fraction = 1 - cfg["tp1_fraction"] - cfg["runner_fraction"]
+    reward = cfg["tp1_fraction"] * sign * (tp1 - price) + tp2_fraction * sign * (
         tp2 - price
     )
-    costs = (price + cfg["tp1_fraction"] * tp1 + (1 - cfg["tp1_fraction"]) * tp2) * (fee + slippage)
+    costs = (price + cfg["tp1_fraction"] * tp1 + tp2_fraction * tp2 + cfg["runner_fraction"] * price) * (fee + slippage)
     rr = (reward - costs) / (distance + (price + stop) * (fee + slippage)) if distance > 0 else -1
     approved = (
         distance > 0 and sign * (tp1 - price) > 0 and rr >= cfg["min_reward_risk"] and stop > 0
@@ -555,6 +589,10 @@ def trade_plan(signal, cfg, equity=10000.0, fee=0.0005, slippage=0.0002, entry=N
         metadata=dict(
             tp2=tp2,
             tp1_fraction=cfg["tp1_fraction"],
+            tp2_fraction=tp2_fraction,
+            runner_fraction=cfg["runner_fraction"],
+            runner_trail_percent=cfg["runner_trail_percent"],
+            runner_reward_assumption="exit_at_entry_after_costs",
             range_timeframe=signal["range_timeframe"],
             min_reward_risk=cfg["min_reward_risk"],
         ),

@@ -17,7 +17,7 @@ from market_data.models import Timeframe
 from persistence.models import StoredTrade
 from persistence.statistics import TradeStatistics
 
-ENGINE_VERSION = "backtest-2.0.0"
+ENGINE_VERSION = "backtest-2.1.0"
 
 
 def _canonical_json(payload: object) -> str:

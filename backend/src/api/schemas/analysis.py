@@ -84,6 +84,7 @@ class FreshnessOut(BaseModel):
 
 
 class AnalysisOut(BaseModel):
+    range_events: list[dict[str, object]] = Field(default_factory=list)
     market_state: str | None = None
     timeframe_context: dict[str, object] = Field(default_factory=dict)
     venue: str | None = None

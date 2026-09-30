@@ -828,12 +828,13 @@ class TestRunPersistence:
             store.save_run(record)
         store.close()
 
-    def test_v2_database_migrates_to_v3_preserving_data(self, tmp_path: Path) -> None:
+    def test_v2_database_migrates_to_current_preserving_data(self, tmp_path: Path) -> None:
         """An existing Phase 8 database upgrades safely to the new schema."""
         db_path = tmp_path / "legacy.db"
         legacy = SqlitePersistence(db_path, clock_ms=lambda: 7)
         legacy.ingest_dataset(sawtooth_dataset(cycles=2), source="binance")
-        assert legacy.schema_version == 3  # fresh store already at head
+        from persistence.migrations import SCHEMA_VERSION
+        assert legacy.schema_version == SCHEMA_VERSION  # fresh store already at head
         legacy.close()
 
         # Simulate a genuine pre-Phase-9 database: drop app tables, rewind version.
@@ -841,17 +842,17 @@ class TestRunPersistence:
 
         conn = sqlite3.connect(str(db_path))
         for table in (
-            "audit_log", "exchange_connections", "strategy_configs",
+            "journal_entries", "audit_log", "exchange_connections", "strategy_configs",
             "watchlist_items", "watchlists", "sessions", "users",
         ):
             conn.execute(f"DROP TABLE IF EXISTS {table}")
         conn.execute("ALTER TABLE backtest_runs DROP COLUMN owner_user_id")
-        conn.execute("DELETE FROM schema_migrations WHERE version=3")
+        conn.execute("DELETE FROM schema_migrations WHERE version>=3")
         conn.commit()
         conn.close()
 
         reopened = SqlitePersistence(db_path, clock_ms=lambda: 8)
-        assert reopened.schema_version == SCHEMA_VERSION_3
+        assert reopened.schema_version == SCHEMA_VERSION
         candles = reopened.query_candles("BTC/USDT", Timeframe.H1, source="binance")
         assert len(candles.candles) == 48
         record = run_record_from(

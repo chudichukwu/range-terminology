@@ -310,6 +310,7 @@ export type FreshnessInfo = {
   last_closed_timestamp_ms: number | null;
 };
 export type PairAnalysis = {
+  range_events?: {kind:string;repeated?:boolean;timestamp:number;level:number;range_low:number;range_high:number;range_established:number}[];
   market_state?: string;
   timeframe_context?: Record<string, { state:string; trend:string|null; adx:number|null; atr:number|null; low:number|null; high:number|null; midpoint:number|null; reason:string; role:string }>;
   swing_failures: { direction: "bullish" | "bearish"; level: number; timestamp: number; swing_timestamp: number; grade?: string | null; kind?: string; range_timeframe?: string }[];

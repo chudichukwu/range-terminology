@@ -362,6 +362,10 @@ class BacktestRunner:
         exits: list[dict[str, object]] = []
         active_stop = stop_price
         took_partial = False
+        runner_active = False
+        breakout_runner = staged_exit.get("runner_fraction", 0.0) if staged_exit else 0.0
+        if staged_exit:
+            trail_percent = staged_exit.get("runner_trail_percent", 0.02)
 
         for exit_index in range(entry_index, len(window)):
             bar = window[exit_index]
@@ -370,7 +374,7 @@ class BacktestRunner:
                 active_stop,
                 (
                     staged_exit["tp2"]
-                    if staged_exit
+                    if staged_exit and not runner_active
                     else float("inf")
                     if direction is PositionDirection.LONG
                     else 0.0
@@ -423,6 +427,19 @@ class BacktestRunner:
                     candle_low=bar.low,
                     slippage_rate=config.slippage_rate,
                 )
+            if outcome == "target" and staged_exit and took_partial and not runner_active and breakout_runner > 0:
+                # TP2 closes only its allocation. Never award a trailing update intrabar.
+                partial_qty = quantity * (1 - staged_exit["tp1_fraction"] - breakout_runner)
+                exits.append({"price": exit_fill, "quantity": partial_qty,
+                              "timestamp": bar.close_time_ms, "reason": "tp2_partial"})
+                remaining -= partial_qty
+                runner_active = True
+                outcome, exit_fill = resolve_protective_exit(
+                    direction, active_stop,
+                    float("inf") if direction is PositionDirection.LONG else 0.0,
+                    candle_open=staged_exit["tp2"], candle_high=bar.high, candle_low=bar.low,
+                    slippage_rate=config.slippage_rate,
+                )
             if staged_exit:
                 outside = (
                     bar.close < range_low - staged_exit["buffer"]
@@ -446,7 +463,7 @@ class BacktestRunner:
                     else 1 + config.slippage_rate
                 )
             if outcome is None:
-                if took_partial and not staged_exit:
+                if took_partial and (not staged_exit or runner_active):
                     # Tighten only for the NEXT candle, avoiding intrabar hindsight.
                     active_stop = (
                         max(active_stop, bar.close * (1 - trail_percent))
@@ -459,7 +476,7 @@ class BacktestRunner:
                     "price": exit_fill,
                     "quantity": remaining,
                     "timestamp": bar.close_time_ms,
-                    "reason": ("breakeven_stop" if staged_exit else "runner_stop")
+                    "reason": ("runner_stop" if runner_active or not staged_exit else "breakeven_stop")
                     if took_partial and outcome == "stop"
                     else "tp2"
                     if staged_exit and took_partial and outcome == "target"
@@ -517,7 +534,7 @@ class BacktestRunner:
                     "exit_fills": exits,
                     "run_id": run_id,
                     "entry_mode": "touch" if touch_entry is not None else "close",
-                    "runner_fraction": 0.0 if staged_exit else runner,
+                    "runner_fraction": breakout_runner if staged_exit else runner,
                     "staged_exit": staged_exit,
                     "regime": regime.value,
                     "zone": zone,

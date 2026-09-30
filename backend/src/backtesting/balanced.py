@@ -98,6 +98,8 @@ def replay_balanced(datasets, config):
             run_id=run_id,
             staged_exit=dict(
                 tp1_fraction=cfg["tp1_fraction"],
+                runner_fraction=cfg["runner_fraction"],
+                runner_trail_percent=cfg["runner_trail_percent"],
                 tp2=signal["tp2"],
                 buffer=snap.atr * cfg["breakout_buffer_atr"],
                 hold_closes=cfg["hold_closes"],

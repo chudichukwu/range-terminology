@@ -5,6 +5,7 @@ from copy import deepcopy
 PRESET = {
     "range_config": {
         "mode": "balanced",
+        "range_policy": "contextual",
         "lookback": 100,
         "pivot_window": 2,
         "min_touches": 2,
@@ -30,7 +31,8 @@ PRESET = {
         "min_reward_risk": 2.0,
         "risk_per_trade": 0.01,
         "max_leverage": 3.0,
-        "runner_fraction": 0.0,
+        "runner_fraction": 0.2,
+        "runner_trail_percent": 0.02,
     },
 }
 

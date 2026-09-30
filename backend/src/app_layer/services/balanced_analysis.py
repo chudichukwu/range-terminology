@@ -15,6 +15,7 @@ from range_engine.balanced import (
     trade_plan,
 )
 from signal_engine.structure import swing_failures
+from range_engine.context import range_observations, nearby_levels
 
 
 def analyze_balanced(
@@ -128,6 +129,7 @@ def analyze_balanced(
             for b in ds.candles
         ],
         swing_failures=failures,
+        range_events=range_observations(bars, timeline, cfg),
         quality_issues=issues,
         is_analysis_safe=not issues,
         range=dict(
@@ -144,6 +146,10 @@ def analyze_balanced(
                 reason=snap.reason,
                 reclaimed=snap.reclaimed,
                 structure_confirmed=bool(snap.established),
+                preceding_trend=snap.preceding_trend,
+                trend_context=snap.trend,
+                nearby_levels=nearby_levels(bars, snap, cfg),
+                range_policy=cfg["range_policy"],
                 midpoint=snap.midpoint,
                 atr=snap.atr,
                 adx=snap.adx,
