@@ -53,3 +53,13 @@ def test_learning_check_uses_earlier_labels_only(client):
     assert result['training_examples']==7 and result['held_out_examples']==3
     assert abs(result['high_offset']-.1)<1e-8
     assert abs(result['adjusted_error']-.15)<1e-8
+
+def test_screenshot_label_is_visible_but_excluded_from_learning(client):
+    root=bootstrap_owner(client); h=auth_headers(root)
+    c=client.app.state.container; u=c.store.get_user_by_email('root@example.com')
+    c.store.save_observed_range(u.id,'screenshot-test',dict(snapshot=None,provenance='screenshot_label',symbol='ETH/USDC:USDC',venue='hyperliquid',timeframe='1h',low=2636,high=2721,reason='outer_boundaries',notes='Approximate screenshot label'))
+    response=client.get('/observed-ranges',headers=h)
+    assert response.status_code==200
+    assert response.json()[0]['candle_count']==0
+    assert client.get('/observed-ranges/screenshot-test',headers=h).json()['snapshot'] is None
+    assert client.get('/observed-ranges/review',headers=h).json()['groups']==[]

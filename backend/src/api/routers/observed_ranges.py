@@ -35,7 +35,9 @@ def owned(container, user, entry_id):
 
 
 def summary(entry):
-    snap = entry['snapshot']
+    snap = entry.get('snapshot')
+    if snap is None:
+        return {k:v for k,v in entry.items() if k != 'snapshot'} | dict(candle_count=0, asof=None, automatic_low=None, automatic_high=None)
     return {k: v for k, v in entry.items() if k != 'snapshot'} | dict(
         symbol=snap['symbol'], timeframe=snap['timeframe'], venue=snap.get('venue'),
         candle_count=len(snap['candles']), asof=snap['freshness'].get('last_closed_timestamp_ms'),
@@ -50,7 +52,10 @@ def review(user: CurrentUser, container: ContainerDep):
     # Group comparable examples. Do not mix prices across symbols, venues or timeframes.
     groups = {}
     for e in container.store.observed_ranges(user.id):
-        s = e['snapshot']; r = s['range']; lo, hi = r['low'], r['high']
+        s = e.get('snapshot')
+        if s is None:  # Screenshot labels lack verified historical candles.
+            continue
+        r = s['range']; lo, hi = r['low'], r['high']
         if lo is None or hi is None or hi <= lo:
             continue
         key = (s['symbol'], s.get('venue'), s['timeframe'])
