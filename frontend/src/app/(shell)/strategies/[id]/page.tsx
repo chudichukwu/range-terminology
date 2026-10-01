@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { PageHeader, ContentContainer } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -11,7 +11,8 @@ import { StrategyForm, StrategySummary } from "@/components/strategy/StrategyFor
 import { api, ApiError } from "@/lib/api/client";
 import type { Strategy } from "@/lib/api/types";
 
-export default function StrategyDetailPage({ params }: { params: { id: string } }) {
+export default function StrategyDetailPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [loading, setLoading] = useState(true);

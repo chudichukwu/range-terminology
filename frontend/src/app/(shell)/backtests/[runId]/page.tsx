@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { PageHeader, ContentContainer } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +14,8 @@ import { TradeTable } from "@/components/backtest/TradeTable";
 import { api, ApiError } from "@/lib/api/client";
 import type { BacktestDetail } from "@/lib/api/types";
 
-export default function BacktestRunPage({ params }: { params: { runId: string } }) {
+export default function BacktestRunPage() {
+  const params = useParams<{ runId: string }>();
   const [detail, setDetail] = useState<BacktestDetail | null>(null);
   const [error, setError] = useState<{ message: string; requestId: string; code: string } | null>(null);
 

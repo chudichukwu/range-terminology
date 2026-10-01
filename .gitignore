@@ -18,4 +18,5 @@ frontend/out/
 *.db-wal
 .env
 .env.local
+.env.*.local
 frontend/.next-qa/
