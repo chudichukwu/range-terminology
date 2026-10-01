@@ -2,6 +2,21 @@
 
 Not yet a public-launch readiness signoff.
 
+## Live private test — 1 October 2026
+
+- App: https://grandblue-mu.vercel.app
+- API: https://grandblue-api.onrender.com
+- Vercel project: `ems-shenanigans/grandblue`, root `frontend`.
+- Render service: `grandblue-api`, Free Docker service, one worker.
+- Supabase project: `grand blue`; application data lives in private `grandblue` schema.
+- Existing accounts, watchlist, saved range and alerts were migrated and verified.
+  Old sessions were excluded; sign in again with the existing Grandblue password.
+- Local SQLite backend was stopped to prevent divergent writes. Keep its backup;
+  do not restart it as a second live database.
+- Both hosts deploy from GitHub `main`. Credentials remain outside source control.
+- Backend health and frontend connection passed; authenticated real-device testing
+  remains for the owner on phone and iPad.
+
 ## Selected free cloud test: Vercel + Render + Supabase
 
 1. Create a dedicated Supabase project. Use its **session pooler** Postgres URL
@@ -25,8 +40,7 @@ Not yet a public-launch readiness signoff.
 Render free services sleep when idle, so alerts/scans do not run continuously.
 Expect a cold start when reopening the app. This is a private test limitation;
 do not promise 24/7 alerts until an always-on worker is deployed.
-Migration of real user data requires an identified Supabase destination and
-secure credentials. No real user data has been transferred by this change.
+Migration was completed with owner approval to the existing Supabase project.
 
 ## Vercel frontend
 
@@ -61,12 +75,9 @@ to use `dev_server.py`. The container runs one API/alert worker and uses `/healt
 for its health check. Configure the host's HTTPS endpoint as Vercel's
 `API_SERVER_URL`. Do not put a database or secrets in the image.
 
-This container needs a host with a persistent volume. It must not be deployed
-unchanged to an ephemeral free service. Render's free service has no persistent
-disk and sleeps when idle; moving there requires a managed database adapter,
-data migration and a separate plan for alerts while the service sleeps.
-No hosting plan, database migration, or paid service has been provisioned yet.
-Container execution still needs verification on a host with Docker installed.
+The SQLite alternative requires a persistent volume. The live Render deployment
+uses the Postgres adapter and Supabase instead, so no local disk is needed.
+Container startup and health were verified on Render Free; no paid plan was selected.
 
 ## Preserve data
 
@@ -80,13 +91,13 @@ local source database. Revoke old sessions after migration as appropriate.
 
 ## Before a public product launch
 
-- Complete the cloud migration and verify restore/backups on the selected project.
+- Verify backup restoration on the selected cloud project; initial migration is complete.
 - Move alert monitoring and backtests to a queue/worker with single-job ownership.
 - Add per-account/provider rate limits, bounded requests and background-job quotas.
 - Replace browser-local bearer token storage with a reviewed secure session design;
   add account recovery, email verification, login throttling and account lifecycle.
 - Audit cross-account resource access, including legacy owner bypasses.
-- Review dependencies/security advisories and upgrade the older frontend framework.
+- Keep dependency checks current; Next.js was upgraded to 15.5.24 and the production dependency audit passed at deployment.
 - Add error monitoring, uptime/provider metrics, encrypted backups and restore drills.
 - Add real-device Safari/Chrome checks, accessibility checks and load testing.
 - Separate deployment environments and establish retention/export/deletion policies.
