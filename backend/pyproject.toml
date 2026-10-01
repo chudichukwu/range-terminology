@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Pluggable range-detection domain engine for the crypto range-trading terminal."
 requires-python = ">=3.12"
 dependencies = [
+    "psycopg[binary]>=3.2,<4",
     "numpy>=2.0",
     "pandas>=2.2",
     "fastapi>=0.115",
@@ -16,6 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+postgres-test = ["pgserver==0.1.4"]
 exchange = [
     "ccxt>=4.0",
 ]

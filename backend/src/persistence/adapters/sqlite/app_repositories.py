@@ -112,7 +112,7 @@ class SqliteAppStore(
     def _user_from_row(row: object) -> User | None:
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return User(
             id=str(row["id"]),
             email=str(row["email"]),
@@ -154,7 +154,7 @@ class SqliteAppStore(
             return None
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return Session(
             id=str(row["id"]),
             user_id=str(row["user_id"]),
@@ -277,7 +277,7 @@ class SqliteAppStore(
     def _watchlist_from_row(row: object) -> Watchlist | None:
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return Watchlist(
             id=str(row["id"]),
             owner_user_id=str(row["owner_user_id"]),
@@ -290,7 +290,7 @@ class SqliteAppStore(
     def _item_from_row(row: object) -> WatchlistItem | None:
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return WatchlistItem(
             id=str(row["id"]),
             watchlist_id=str(row["watchlist_id"]),
@@ -365,7 +365,7 @@ class SqliteAppStore(
     def _strategy_from_row(row: object) -> StrategyConfig | None:
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return StrategyConfig(
             id=str(row["id"]),
             owner_user_id=str(row["owner_user_id"]),
@@ -427,7 +427,7 @@ class SqliteAppStore(
     def _connection_from_row(row: object) -> ExchangeConnection | None:
         import sqlite3
 
-        assert isinstance(row, sqlite3.Row)
+        assert isinstance(row, (sqlite3.Row, dict))
         return ExchangeConnection(
             id=str(row["id"]),
             owner_user_id=str(row["owner_user_id"]),

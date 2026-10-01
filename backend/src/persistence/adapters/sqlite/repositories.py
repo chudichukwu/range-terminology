@@ -86,7 +86,8 @@ class SqlitePersistence(CandleRepository, TradeRepository, BacktestRunRepository
         *,
         clock_ms: Callable[[], int] | None = None,
     ) -> None:
-        self._db = SqliteDatabase(path)
+        from persistence.factory import open_database
+        self._db = open_database(path)
         self._clock_ms = clock_ms if clock_ms is not None else utc_clock_ms
         self.schema_version = self._db.ensure_schema()
 

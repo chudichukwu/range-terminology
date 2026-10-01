@@ -1,0 +1,16 @@
+# Free private test. Background scans pause when Render suspends the service.
+services:
+  - type: web
+    name: grandblue-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deployment/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GRANDBLUE_PRIVATE_BETA
+        value: "1"
+      - key: GRANDBLUE_ALLOWED_ORIGINS
+        value: ""

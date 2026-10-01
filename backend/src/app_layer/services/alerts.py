@@ -14,8 +14,13 @@ from app_layer.services.providers import public_source
 
 class AlertService:
     def __init__(self, path: str):
-        self._db = sqlite3.connect(path, check_same_thread=False)
-        self._db.row_factory = sqlite3.Row
+        from persistence.factory import is_postgres
+        if is_postgres(path):
+            from persistence.postgres import Connection
+            self._db = Connection(path)
+        else:
+            self._db = sqlite3.connect(path, check_same_thread=False)
+            self._db.row_factory = sqlite3.Row
         self._lock = threading.RLock()
         with self._db:
             self._db.executescript("""
@@ -84,8 +89,8 @@ class AlertService:
         event_id = uuid.uuid4().hex
         with self._lock, self._db:
             cur = self._db.execute(
-                """INSERT OR IGNORE INTO alert_events
-                (id,owner,event_key,payload,created,telegram_status) VALUES(?,?,?,?,?,?)""",
+                """INSERT INTO alert_events
+                (id,owner,event_key,payload,created,telegram_status) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,event_key) DO NOTHING""",
                 (
                     event_id,
                     owner,
@@ -103,7 +108,7 @@ class AlertService:
                 "SELECT value FROM alert_states WHERE owner=? AND state_key=?", (owner, key)
             ).fetchone()
             self._db.execute(
-                "INSERT OR REPLACE INTO alert_states VALUES(?,?,?)", (owner, key, value)
+                "INSERT INTO alert_states VALUES(?,?,?) ON CONFLICT(owner,state_key) DO UPDATE SET value=excluded.value", (owner, key, value)
             )
         return old is None or old["value"] != value
 

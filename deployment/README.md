@@ -2,6 +2,32 @@
 
 Not yet a public-launch readiness signoff.
 
+## Selected free cloud test: Vercel + Render + Supabase
+
+1. Create a dedicated Supabase project. Use its **session pooler** Postgres URL
+   (IPv4 compatible), with `sslmode=require` or certificate-verified TLS. Store
+   it privately as `DATABASE_URL`; never use a `NEXT_PUBLIC_` variable for it.
+2. Stop local writes for final migration and take a SQLite backup. Install the
+   backend dependencies, then run `python -m persistence.migrate_cloud --source
+   /absolute/path/to/backup.db` with `DATABASE_URL` set in the environment.
+   This verifies every copied row inside one transaction, refuses a nonempty
+   destination, and excludes old sessions. The local source is unchanged.
+3. Application tables live in the private `grandblue` schema, outside Supabase's
+   public Data API schema. Do not expose that schema or give browser roles access.
+   Supabase Auth is not used yet: existing Grandblue passwords continue to work.
+4. Import the repository's `render.yaml` Blueprint. It explicitly selects the
+   **free** Docker web service. Supply the same secret `DATABASE_URL`. No disk
+   is needed for this Postgres setup. Startup requires the migrated owner.
+5. Set Vercel root to `frontend` and `API_SERVER_URL` to the resulting HTTPS
+   Render origin. Deploy, then sign in and verify write/read persistence on
+   phone and iPad, including after restarting the backend.
+
+Render free services sleep when idle, so alerts/scans do not run continuously.
+Expect a cold start when reopening the app. This is a private test limitation;
+do not promise 24/7 alerts until an always-on worker is deployed.
+Migration of real user data requires an identified Supabase destination and
+secure credentials. No real user data has been transferred by this change.
+
 ## Vercel frontend
 
 Import the GitHub repository with root directory `frontend`, framework Next.js.
@@ -54,7 +80,7 @@ local source database. Revoke old sessions after migration as appropriate.
 
 ## Before a public product launch
 
-- Migrate SQLite repositories to managed Postgres with tested migrations.
+- Complete the cloud migration and verify restore/backups on the selected project.
 - Move alert monitoring and backtests to a queue/worker with single-job ownership.
 - Add per-account/provider rate limits, bounded requests and background-job quotas.
 - Replace browser-local bearer token storage with a reviewed secure session design;
