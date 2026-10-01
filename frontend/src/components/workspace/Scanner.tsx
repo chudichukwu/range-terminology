@@ -25,6 +25,7 @@ export function Scanner({ initialId }: { initialId?: string }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updated, setUpdated] = useState<number | null>(null);
+  const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const generation = useRef(0);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -50,10 +51,13 @@ export function Scanner({ initialId }: { initialId?: string }) {
   const scan = useCallback(async () => {
     abort.current?.abort(); const ac = new AbortController(); abort.current = ac;
     const gen = ++generation.current;
-    const jobs = items.filter(i => i.enabled).flatMap(item => tfs.map(tf => ({ item, tf })));
+    const enabled = items.filter(i => i.enabled);
+    const jobs = tfs.flatMap(tf => enabled.map(item => ({ item, tf })));
+    setProgress({ completed: 0, total: jobs.length });
     if (!jobs.length) { setRows({}); setBusy(false); return; }
     setBusy(true); let index = 0;
-    await Promise.all(Array.from({ length: Math.min(1, jobs.length) }, async () => {
+    // Keep the queue small: the backend serializes each venue's provider access.
+    await Promise.all(Array.from({ length: Math.min(2, jobs.length) }, async () => {
       while (index < jobs.length && !ac.signal.aborted) {
         const job = jobs[index++]; const key = `${job.item.id}:${job.tf}`;
         try {
@@ -61,6 +65,8 @@ export function Scanner({ initialId }: { initialId?: string }) {
           if (generation.current === gen && !ac.signal.aborted) setRows(prev => ({ ...prev, [key]: { ...job, data } }));
         } catch (e) {
           if (generation.current === gen && !ac.signal.aborted) setRows(prev => ({ ...prev, [key]: { ...job, error: e instanceof Error ? e.message : String(e) } }));
+        } finally {
+          if (generation.current === gen && !ac.signal.aborted) setProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
         }
       }
     }));
@@ -94,6 +100,7 @@ export function Scanner({ initialId }: { initialId?: string }) {
       <Link className="secondary-button" href="/strategies/new">+ New strategy</Link><Link className="secondary-button" href="/alerts">Manage alerts ↗</Link><button className="primary-button" disabled={busy || !items.length} onClick={() => void scan()}>{busy ? "Scanning…" : "Refresh scan"}</button>
     </WorkspaceHeader>
     <ErrorNotice error={error} />
+    {busy && <p className="muted" role="status">Checked {progress.completed} of {progress.total} market/timeframe combinations. Results appear as they finish.</p>}
     <div className="stat-grid">
       {[['Markets', items.length, 'In your watchlist'], ['Ranges', all.filter(r => r.data?.range.is_tradable).length, 'Across selected timeframes'], ['Confirmed entries', all.filter(r => r.data && edge(r.data)).length, 'Closed-candle triggers'], ['Swing failures', all.filter(r => r.data && sfp(r.data)).length, 'Latest closed candle']].map(([label, value, note]) => <div className="stat-card" key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>)}
     </div>

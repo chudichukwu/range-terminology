@@ -2,6 +2,7 @@
 
 import time
 from dataclasses import asdict
+from functools import lru_cache
 
 import pandas as pd
 
@@ -16,6 +17,17 @@ from range_engine.balanced import (
 )
 from signal_engine.structure import swing_failures
 from range_engine.context import range_observations, nearby_levels
+
+
+@lru_cache(maxsize=128)
+def _closed_timeline(bars, config_items):
+    """Reuse deterministic structure across scans, chart views and alert checks.
+
+    The key includes every closed candle and setting: new/corrected history or
+    strategy changes rebuild it. Live price and freshness are never cached here.
+    Callers only read the returned timeline.
+    """
+    return Timeline(bars, dict(config_items))
 
 
 def analyze_balanced(
@@ -40,7 +52,7 @@ def analyze_balanced(
         issues.extend(f"{tf}: {e}" for e in errors)
         if not closed or now > closed[-1].close_time_ms + ds.timeframe.duration_ms + 300000:
             stale = True
-        timelines[tf] = Timeline(closed, cfg)
+        timelines[tf] = _closed_timeline(closed, tuple(sorted(cfg.items())))
     ds, timeline = datasets[timeframe], timelines[timeframe]
     bars = timeline.bars
     decision = evaluate_entry(bars, timelines, cfg) if timeframe in ENTRY_TIMEFRAMES else None

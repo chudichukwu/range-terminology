@@ -40,6 +40,23 @@ def wave(n=120):
     return bars
 
 
+def test_live_timeline_reuses_history_and_invalidates_corrections_and_settings():
+    from app_layer.services.balanced_analysis import _closed_timeline
+
+    _closed_timeline.cache_clear()
+    bars = tuple(wave())
+    config = tuple(sorted(DEFAULTS.items()))
+    first = _closed_timeline(bars, config)
+    assert _closed_timeline(tuple(bars), config) is first
+    corrected = (*bars[:-1], replace(bars[-1], high=bars[-1].high + 1))
+    assert _closed_timeline(corrected, config) is not first
+    assert _closed_timeline(bars[:-1], config) is not first
+    changed = tuple(sorted({**DEFAULTS, "min_touches": 3}.items()))
+    assert _closed_timeline(bars, changed) is not first
+    assert first.snapshots == Timeline(bars, DEFAULTS).snapshots
+    _closed_timeline.cache_clear()
+
+
 def frozen_context(trend=None):
     snap = Snapshot(
         BASE, "ranging", 100.0, 120.0, 2.0, 10.0, 110.0, 110.0, None, 3, 3, "Confirmed", BASE
