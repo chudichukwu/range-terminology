@@ -1,2 +1,2 @@
-import { Scanner } from "@/components/workspace/Scanner";
-export default function WatchlistsPage() { return <Scanner />; }
+import { WatchlistManager } from "@/components/workspace/WatchlistManager";
+export default function WatchlistsPage() { return <WatchlistManager />; }

@@ -103,11 +103,12 @@ export const api = {
     return apiFetch<void>("/auth/logout", { method: "POST", body: { token: tok } });
   },
   // Pair analysis — backend-provided market+range+regime+signal+risk
-  pairAnalysis: (params: { symbol: string; timeframe: string; strategy_id?: string; limit?: number; venue?: string }, signal?: AbortSignal) => {
+  pairAnalysis: (params: { symbol: string; timeframe: string; strategy_id?: string; limit?: number; venue?: string; summary?: boolean }, signal?: AbortSignal) => {
     const sp = new URLSearchParams({ symbol: params.symbol, timeframe: params.timeframe });
     if (params.venue) sp.set("venue", params.venue);
     if (params.strategy_id) sp.set("strategy_id", params.strategy_id);
     if (params.limit) sp.set("limit", String(params.limit));
+    if (params.summary) sp.set("summary", "true");
     return apiFetch<import("./types").PairAnalysis>(`/analysis/pair?${sp.toString()}`, { signal });
   },
   listWatchlists: (signal?: AbortSignal) => apiFetch<import("./types").Watchlist[]>("/watchlists", { signal }),

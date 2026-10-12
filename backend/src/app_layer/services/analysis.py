@@ -81,6 +81,7 @@ class PairAnalysisService:
         strategy_id: str | None = None,
         limit: int = 200,
         now_ms: int | None = None,
+        summary: bool = False,
     ) -> dict[str, Any]:
         payload = (
             self._strategies.get(actor, strategy_id).payload()
@@ -96,7 +97,8 @@ class PairAnalysisService:
                 else "Confirmed range · starting settings"
             )
             return analyze_balanced(
-                self._markets, actor, symbol, timeframe, payload, strategy_id, name, limit, now_ms
+                self._markets, actor, symbol, timeframe, payload, strategy_id, name, limit, now_ms,
+                summary=summary,
             )
         # --- fetch market data (delegates validation to facade) ---
         dataset: CandleDataset = self._markets.candles(

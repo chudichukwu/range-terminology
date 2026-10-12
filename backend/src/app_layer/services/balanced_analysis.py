@@ -31,7 +31,8 @@ def _closed_timeline(bars, config_items):
 
 
 def analyze_balanced(
-    markets, actor, symbol, timeframe, payload, strategy_id, name, limit, now_ms=None
+    markets, actor, symbol, timeframe, payload, strategy_id, name, limit, now_ms=None,
+    *, summary=False,
 ):
     cfg = settings(payload)
     now = now_ms or time.time_ns() // 1_000_000
@@ -70,7 +71,12 @@ def analyze_balanced(
     failures = []
     # Chart observations use this timeframe's own pre-sweep range. Trade eligibility
     # remains governed by the 4H/1H playbook above.
-    for i in range(20, len(bars) + 1):
+    # Scanner/monitor consumers need only the current closed-candle event.
+    # Keep the same history for range and entry decisions; skip chart replay.
+    observation_steps = [len(bars)] if summary and len(bars) >= 20 else (
+        [] if summary else range(20, len(bars) + 1)
+    )
+    for i in observation_steps:
         event = evaluate_entry(
             bars[:i], timelines, cfg, range_timeframes=(timeframe,)
         ).get("sfp")
@@ -83,7 +89,7 @@ def analyze_balanced(
         keys = {(e["timestamp"], e["direction"]) for e in failures}
         failures.extend({**e, "kind": "swing", "grade": None} for e in swing_failures(
             frame, pivot_window=int(cfg["pivot_window"]), lookback=int(cfg["lookback"]),
-            recent=len(bars)
+            recent=1 if summary else len(bars)
         ) if (e["timestamp"], e["direction"]) not in keys)
         failures.sort(key=lambda e: e["timestamp"])
     chart_state = (
@@ -138,10 +144,10 @@ def analyze_balanced(
                 volume=b.volume,
                 is_closed=b.is_closed,
             )
-            for b in ds.candles
+            for b in (ds.candles[-1:] if summary else ds.candles)
         ],
         swing_failures=failures,
-        range_events=range_observations(bars, timeline, cfg),
+        range_events=[] if summary else range_observations(bars, timeline, cfg),
         quality_issues=issues,
         is_analysis_safe=not issues,
         range=dict(

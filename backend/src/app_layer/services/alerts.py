@@ -133,7 +133,7 @@ class AlertService:
                                 analysis = PairAnalysisService(
                                     source.facade, container.strategies
                                 ).analyze(
-                                    user, item.symbol, tf, strategy_id=rule.get("strategy_id")
+                                    user, item.symbol, tf, strategy_id=rule.get("strategy_id"), summary=True
                                 )
                             if (
                                 not analysis["is_analysis_safe"]

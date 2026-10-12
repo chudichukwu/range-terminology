@@ -23,15 +23,16 @@ def pair_analysis(
     strategy_id: str | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
     venue: str | None = Query(default=None),
+    summary: bool = Query(default=False, description="Current setup only; omit chart replay history"),
 ) -> dict[str, object]:
     if venue:
         source = public_source(venue)
         with source.lock:
             result = PairAnalysisService(source.facade, container.strategies).analyze(
-                user, symbol, timeframe, strategy_id=strategy_id, limit=limit)
+                user, symbol, timeframe, strategy_id=strategy_id, limit=limit, summary=summary)
         return {**result, "venue": venue}
     svc = PairAnalysisService(container.markets, container.strategies)
-    return svc.analyze(user, symbol, timeframe, strategy_id=strategy_id, limit=limit)
+    return svc.analyze(user, symbol, timeframe, strategy_id=strategy_id, limit=limit, summary=summary)
 
 
 @router.get("/pair/{symbol_dashed}", response_model=AnalysisOut)
@@ -43,6 +44,7 @@ def pair_analysis_dashed(
     strategy_id: str | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
     venue: str | None = Query(default=None),
+    summary: bool = Query(default=False),
 ) -> dict[str, object]:
     return pair_analysis(container, user, symbol_dashed.replace("-", "/"), timeframe,
-                         strategy_id, limit, venue)
+                         strategy_id, limit, venue, summary)
