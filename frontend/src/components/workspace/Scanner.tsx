@@ -47,8 +47,8 @@ export function Scanner({ initialId }: { initialId?: string }) {
   useEffect(() => {
     const ac = new AbortController(); const gen = ++generation.current;
     let timer: ReturnType<typeof setTimeout>;
-    const scan = async () => {
-      if (document.hidden) { timer = setTimeout(scan, 10000); return; }
+    const scan = async (requested = false) => {
+      if (document.hidden && !requested) { timer = setTimeout(scan, 10000); return; }
       const jobs = frames.flatMap(tf => items.map(item => ({ item, tf })));
       setProgress({ completed: 0, total: jobs.length });
       if (!jobs.length) { setBusy(false); return; }
@@ -68,7 +68,7 @@ export function Scanner({ initialId }: { initialId?: string }) {
       }));
       if (generation.current === gen && !ac.signal.aborted) { setBusy(false); setUpdated(Date.now()); timer = setTimeout(scan, 60000); }
     };
-    void scan(); return () => { ac.abort(); clearTimeout(timer); };
+    void scan(true); return () => { ac.abort(); clearTimeout(timer); };
   }, [items, frames, strategy, cycle]);
   const matches = (r?: Row) => {
     if (filter === "all") return true;
