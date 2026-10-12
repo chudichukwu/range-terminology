@@ -235,6 +235,9 @@ body {
 @media(max-width:800px){.collection-layout,.analysis-workspace .chart-layout{grid-template-columns:1fr}.collection-sidebar nav{display:flex;overflow-x:auto;gap:6px}.collection-choice{min-width:150px;width:auto}.collection-sidebar form{grid-template-columns:1fr auto;align-items:end;margin:16px 0}.scan-overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;padding:20px 4px}.scan-overview>div:nth-child(2){border:0}.scan-matrix-head{display:none}.scan-matrix{overflow:visible}.scan-market-row{display:block;min-width:0;padding:12px}.scan-market-row>.token-identity{padding:8px 4px 16px}.scan-market-cells{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.scan-cell{border:1px solid #252b36;border-radius:10px;padding:12px;min-height:140px}.scan-cell-timeframe{display:flex;justify-content:space-between;font-size:12px;color:#a5bdeb}.scan-live-status{flex-wrap:wrap}.scan-live-status small{width:100%;margin-left:12px}.scan-timeframes summary>span{margin-left:8px}.scan-timeframes summary>.muted{display:none}.scan-surface .panel-toolbar{align-items:stretch;flex-direction:column}.scan-surface .toolbar-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.collection-row .heading-actions{width:100%;justify-content:space-between}.analysis-inspector .filter-tabs{position:sticky;top:0;background:#0b0d12}.collection-main .panel-toolbar{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.scan-progress>span,.scan-cell{transition:none}}
 
+.analysis-workspace .chart-layout>div{min-width:0}
+@media(max-width:800px){.analysis-tools .toolbar-controls{display:grid;grid-template-columns:1fr}.analysis-tools .toolbar-controls .field{min-width:0}}
+
 /* Precise blue pointer with a quiet halo; native text/chart cursors stay intact. */
 .cursor-glow {
   display: none;
